@@ -1,0 +1,56 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: kyrazam-prod-redis
+    restart: always
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  sidecar:
+    build:
+      context: ./sidecar
+      dockerfile: Dockerfile
+    container_name: kyrazam-prod-sidecar
+    restart: always
+    ports:
+      - "127.0.0.1:8001:8001"
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kyrazam-prod-backend
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      sidecar:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis_data:
