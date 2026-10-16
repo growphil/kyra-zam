@@ -1,0 +1,88 @@
+name: Deploy Backend & Sidecar to AWS ECS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'sidecar/**'
+      - 'aws/**'
+      - '.github/workflows/deploy-backend-aws.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_BACKEND_REPOSITORY: kyrazam-backend
+  ECR_SIDECAR_REPOSITORY: kyrazam-sidecar
+  ECS_SERVICE: kyrazam-backend-service
+  ECS_CLUSTER: kyrazam-production-cluster
+  ECS_TASK_DEFINITION: aws/ecs-task-definition.json
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 1. Build, Tag, and Push Backend Image
+      - name: Build and Push Backend to ECR
+        id: build-backend
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG -t $REGISTRY/$ECR_BACKEND_REPOSITORY:latest ./backend
+          docker push $REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$ECR_BACKEND_REPOSITORY:latest
+          echo "backend_image=$REGISTRY/$ECR_BACKEND_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      # 2. Build, Tag, and Push Sidecar Image
+      - name: Build and Push Sidecar to ECR
+        id: build-sidecar
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $REGISTRY/$ECR_SIDECAR_REPOSITORY:$IMAGE_TAG -t $REGISTRY/$ECR_SIDECAR_REPOSITORY:latest ./sidecar
+          docker push $REGISTRY/$ECR_SIDECAR_REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$ECR_SIDECAR_REPOSITORY:latest
+          echo "sidecar_image=$REGISTRY/$ECR_SIDECAR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      # 3. Update Task Definition with new image tags
+      - name: Render Backend Container Image in Task Definition
+        id: render-backend
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ env.ECS_TASK_DEFINITION }}
+          container-name: kyrazam-backend
+          image: ${{ steps.build-backend.outputs.backend_image }}
+
+      - name: Render Sidecar Container Image in Task Definition
+        id: render-sidecar
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          container-name: kyrazam-sidecar
+          image: ${{ steps.build-sidecar.outputs.sidecar_image }}
+
+      # 4. Deploy Task Definition to ECS Service
+      - name: Deploy to Amazon ECS Service
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-sidecar.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true

@@ -1,0 +1,261 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: var(--font-dm-sans), var(--font-syne), sans-serif;
+  --font-body: var(--font-dm-sans), sans-serif;
+  
+  --color-primary: #0878F9;
+  --color-primary-hover: #0667DB;
+  --color-primary-soft: #EAF5FF;
+  --color-accent: #0878F9;
+  --color-accent-hover: #0667DB;
+  --color-accent-soft: #EAF5FF;
+  --color-sidebar: #061B3A;
+  --color-sidebar-hover: #0D2A54;
+  --color-sidebar-active: #0878F9;
+  --color-app-bg: #F4F9FF;
+  --color-surface: #FFFFFF;
+  --color-brand-highlight: #FFC928;
+}
+
+:root {
+  --color-sidebar: #061B3A;
+  --color-sidebar-hover: #0D2A54;
+  --color-sidebar-active: #0878F9;
+  --color-primary: #0878F9;
+  --color-primary-hover: #0667DB;
+  --color-primary-soft: #EAF5FF;
+  --color-app-bg: #F4F9FF;
+  --color-surface: #FFFFFF;
+  --color-text: #0B2148;
+  --color-text-secondary: #526B91;
+  --color-text-muted: #64748B;
+  --color-border: #D8E8FA;
+  --color-border-subtle: #E8F1FC;
+  --color-brand-highlight: #FFC928;
+  
+  /* Universal Semantic Status Tokens */
+  --color-success-text: #166534;
+  --color-success-bg: #DCFCE7;
+  --color-success-border: #BBF7D0;
+  
+  --color-info-text: #1D4ED8;
+  --color-info-bg: #DBEAFE;
+  --color-info-border: #BFDBFE;
+  
+  --color-warning-text: #92400E;
+  --color-warning-bg: #FEF3C7;
+  --color-warning-border: #FDE68A;
+  
+  --color-danger-text: #991B1B;
+  --color-danger-bg: #FEE2E2;
+  --color-danger-border: #FECACA;
+  
+  --color-neutral-text: #475569;
+  --color-neutral-bg: #F1F5F9;
+  --color-neutral-border: #E2E8F0;
+  
+  --color-hold-text: #9A3412;
+  --color-hold-bg: #FFEDD5;
+  --color-hold-border: #FED7AA;
+
+  --sidebar-width: 240px;
+  --sidebar-width-collapsed: 72px;
+  --header-height: 64px;
+  --radius-card: 12px;
+  --radius-control: 8px;
+  --space-page: 24px;
+  --space-card: 18px;
+  --space-grid: 16px;
+
+  --background: #F4F9FF;
+  --foreground: #0B2148;
+}
+
+body {
+  background: var(--color-app-bg);
+  color: var(--color-text);
+  font-family: var(--font-dm-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-dm-sans), sans-serif;
+  color: var(--color-text);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+/* Professional Enterprise Card & Surface Utility */
+.glass-panel, .surface-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 3px 0 rgba(11, 33, 72, 0.04), 0 1px 2px -1px rgba(11, 33, 72, 0.02);
+  border-radius: var(--radius-card);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.glass-panel:hover, .surface-card:hover {
+  border-color: #B9D6F7;
+  box-shadow: 0 4px 12px -2px rgba(11, 33, 72, 0.06), 0 2px 4px -2px rgba(11, 33, 72, 0.03);
+}
+
+/* Clean Professional Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Universal scrollbar hiding utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0 !important;
+  height: 0 !important;
+}
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+/* Telemetry & Industrial Monospace */
+.font-mono {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Primary Action Buttons */
+.btn-primary {
+  background-color: var(--color-primary);
+  color: #FFFFFF !important;
+  font-weight: 600;
+  border-radius: var(--radius-control);
+  padding: 0.5rem 1rem;
+  transition: all 150ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+  color: #FFFFFF !important;
+  box-shadow: 0 2px 8px rgba(8, 120, 249, 0.25);
+}
+
+/* Status Badge Utility Classes */
+.badge-success {
+  color: var(--color-success-text) !important;
+  background-color: var(--color-success-bg) !important;
+  border: 1px solid var(--color-success-border) !important;
+}
+
+.badge-info {
+  color: var(--color-info-text) !important;
+  background-color: var(--color-info-bg) !important;
+  border: 1px solid var(--color-info-border) !important;
+}
+
+.badge-warning {
+  color: var(--color-warning-text) !important;
+  background-color: var(--color-warning-bg) !important;
+  border: 1px solid var(--color-warning-border) !important;
+}
+
+.badge-danger {
+  color: var(--color-danger-text) !important;
+  background-color: var(--color-danger-bg) !important;
+  border: 1px solid var(--color-danger-border) !important;
+}
+
+.badge-neutral {
+  color: var(--color-neutral-text) !important;
+  background-color: var(--color-neutral-bg) !important;
+  border: 1px solid var(--color-neutral-border) !important;
+}
+
+.badge-hold {
+  color: var(--color-hold-text) !important;
+  background-color: var(--color-hold-bg) !important;
+  border: 1px solid var(--color-hold-border) !important;
+}
+
+/* Global Form Controls */
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  background-color: #FFFFFF !important;
+  color: var(--color-text) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: var(--radius-control);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--color-primary) !important;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(8, 120, 249, 0.15) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+/* Global Table Styling */
+table {
+  color: var(--color-text);
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+thead, thead tr {
+  background-color: #F4F9FF !important;
+  border-bottom: 1px solid var(--color-border) !important;
+}
+
+thead th {
+  color: var(--color-text-secondary) !important;
+  font-weight: 600 !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  padding: 0.75rem 1rem !important;
+}
+
+tbody tr {
+  border-bottom: 1px solid var(--color-border-subtle);
+  transition: background-color 150ms ease;
+}
+
+tbody tr:hover {
+  background-color: #F8FBFF !important;
+}
+
+tbody td {
+  padding: 0.75rem 1rem;
+  font-size: 0.8125rem;
+  color: var(--color-text);
+}
+
+/* Modal Overlay & Card Refinements */
+.modal-backdrop {
+  background-color: rgba(6, 27, 58, 0.5) !important;
+  backdrop-filter: blur(4px);
+}

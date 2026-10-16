@@ -1,0 +1,102 @@
+{
+  "family": "kyrazam-production-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/kyrazamEcsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "kyrazam-backend",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/kyrazam-backend:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "hostPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" },
+        { "name": "PORT", "value": "8000" },
+        { "name": "SIDECAR_URL", "value": "http://127.0.0.1:8001" },
+        { "name": "S3_BUCKET", "value": "kyrazam-production-files" },
+        { "name": "S3_REGION", "value": "ap-south-1" },
+        { "name": "STORAGE_DRIVER", "value": "s3" },
+        { "name": "JWT_EXPIRY", "value": "60m" },
+        { "name": "JWT_REFRESH_EXPIRY", "value": "7d" }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:kyrazam/prod/database-url"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:kyrazam/prod/redis-url"
+        },
+        {
+          "name": "JWT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:kyrazam/prod/jwt-secret"
+        },
+        {
+          "name": "JWT_REFRESH_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:<REGION>:<ACCOUNT_ID>:secret:kyrazam/prod/jwt-refresh-secret"
+        }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 15
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/kyrazam-backend",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "backend"
+        }
+      },
+      "dependsOn": [
+        {
+          "containerName": "kyrazam-sidecar",
+          "condition": "HEALTHY"
+        }
+      ]
+    },
+    {
+      "name": "kyrazam-sidecar",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/kyrazam-sidecar:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8001,
+          "hostPort": 8001,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "PYTHONUNBUFFERED", "value": "1" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/kyrazam-sidecar",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "sidecar"
+        }
+      }
+    }
+  ]
+}

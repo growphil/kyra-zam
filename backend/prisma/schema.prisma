@@ -1,0 +1,2577 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model MaterialCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model CellCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model VendorCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  passwordHash  String
+  roles         Role[]
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]
+  createdScraps  ScrapEntry[] @relation("ScrapCreator")
+  approvedScraps ScrapEntry[] @relation("ScrapApprover")
+  assignedCustomers Customer[] @relation("CustomerAssignee")
+  assignedLeads     Lead[]     @relation("LeadAssignee")
+  convertedLeads    Lead[]     @relation("LeadConverter")
+  assignedActivities Activity[] @relation("ActivityAssignee")
+  createdActivities  Activity[] @relation("ActivityCreator")
+  createdQuotations   Quotation[] @relation("QuotationCreator")
+  assignedSalesQuotations Quotation[] @relation("QuotationSalesUser")
+  quotationRevisionsCreated QuotationRevision[] @relation("RevisionCreator")
+  approvalRequestsCreated QuotationApproval[] @relation("ApprovalRequester")
+  decidedApprovals      QuotationApproval[] @relation("ApprovalDecider")
+  createdSalesOrders   SalesOrder[] @relation("SalesOrderCreator")
+  assignedSalesOrders  SalesOrder[] @relation("SalesOrderSalesUser")
+  purchaseRequests      PurchaseRequest[] @relation("PRRequester")
+  prApprovalsRequested  PurchaseRequestApproval[] @relation("PRApprovalRequester")
+  prApprovalsDecided    PurchaseRequestApproval[] @relation("PRApprovalDecider")
+  purchaseOrdersCreated PurchaseOrder[] @relation("POCreator")
+  goodsReceiptsReceived GoodsReceipt[] @relation("GRNReceiver")
+  stockMovements        StockMovement[]
+  supervisedPlans       ProductionPlan[]          @relation("PlanSupervisor")
+  createdPlans          ProductionPlan[]          @relation("PlanCreator")
+  createdRequirements   ProductionRequirement[]   @relation("ReqCreator")
+  supervisedWorkOrders  WorkOrder[]               @relation("WOSupervisor")
+  workOrderOperators    WorkOrderOperator[]
+  inspectionsInspected  QualityInspection[]       @relation("Inspector")
+  defectsReported       Defect[]                  @relation("DefectReporter")
+  defectsResolved       Defect[]                  @relation("DefectResolver")
+  createdDOs            DispatchOrder[]           @relation("DOCreator")
+  assignedDOs           DispatchOrder[]           @relation("DOAssignee")
+  createdInvoices       Invoice[]                 @relation("InvoiceCreator")
+  recordedPayments      Payment[]                 @relation("PaymentRecorder")
+  verifiedPayments      Payment[]                 @relation("PaymentVerifier")
+  financialClearedOrders SalesOrder[] @relation("SalesOrderFinancialClearance")
+  stationAssignments    StationOperatorAssignment[]
+  createdTransfers      StockTransfer[] @relation("TransferCreator")
+  approvedTransfers     StockTransfer[] @relation("TransferApprover")
+  cellInwardsReceived   CellInwardBatch[] @relation("CellInwardReceiver")
+  packingRecords        PackingRecord[] @relation("PackingOperator")
+  assignedAssets        CompanyAsset[] @relation("AssetAssignee")
+  assetMaintenances     AssetMaintenanceRecord[] @relation("MaintenancePerformer")
+  assetAssignments      AssetAssignmentHistory[] @relation("AssignmentUser")
+  employee              Employee?                @relation("EmployeeUser")
+  decidedAttendanceCorrections AttendanceCorrection[] @relation("AttendanceCorrectionDecider")
+  approvedLeaves        LeaveRequest[]           @relation("LeaveApprover")
+  statutoryRulesCreated StatutoryRuleSet[]       @relation("StatutoryRuleCreator")
+  preparedPayrolls      PayrollPeriod[]          @relation("PayrollPreparer")
+  approvedPayrolls      PayrollPeriod[]          @relation("PayrollApprover")
+  paidPayrolls          PayrollPeriod[]          @relation("PayrollPayer")
+}
+
+
+model Cell {
+  serialNumber         String     @id
+  inwardBatchId        String?
+  inwardBatch          CellInwardBatch? @relation("InwardBatchCells", fields: [inwardBatchId], references: [id])
+  partNumber           String?
+  batchNumber          String?
+  voltage              Float
+  category             String
+  cycles               Int
+  ahValue              Float?
+  irValue              Float?
+  grade                String?
+  status               CellStatus @default(RAW)
+  retestCount          Int        @default(0)
+  lastRetestAt         DateTime?
+  qcDecisionHistory    String[]   @default([])
+  machineId            String?
+  machineCalibrationDate DateTime?
+  machineOperator      String?
+  ambientTemperature   Float?
+  cellTemperature      Float?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  reservedForPaxTypeId String?
+  paxType              PaxType?   @relation(fields: [reservedForPaxTypeId], references: [id])
+  paxCell              PaxCell?
+  testingRequirementId String?
+  testingRequirement   ProductionCellTestingRequirement? @relation("CellTestingRequirementCells", fields: [testingRequirementId], references: [id])
+
+  @@index([inwardBatchId])
+  @@index([partNumber])
+  @@index([batchNumber])
+  @@index([testingRequirementId])
+}
+
+model CellInwardBatch {
+  id             String    @id @default(uuid())
+  inwardNumber   String    @unique
+  partNumber     String
+  materialId     String?
+  material       Material? @relation(fields: [materialId], references: [id])
+  batchNumber    String
+  quantity       Int
+  availableQty   Int
+  testedQty      Int       @default(0)
+  rejectedQty    Int       @default(0)
+  consumedQty    Int       @default(0)
+  category       String
+  voltage        Float     @default(3.2)
+  cycles         Int       @default(0)
+  receivedById   String
+  receivedBy     User      @relation("CellInwardReceiver", fields: [receivedById], references: [id])
+  status         String    @default("RECEIVED")
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  cells          Cell[]    @relation("InwardBatchCells")
+
+  @@index([partNumber])
+  @@index([batchNumber])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model WorkOrderScheduling {
+  id           String    @id @default(uuid())
+  workOrderId  String    @unique
+  workOrder    WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  assignedDate DateTime
+  sequence     Int
+  estimatedHrs Float
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([assignedDate])
+  @@unique([assignedDate, sequence])
+}
+
+model WorkOrderExecution {
+  id              String    @id @default(uuid())
+  workOrderId     String    @unique
+  workOrder       WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  startedAt       DateTime?
+  pausedAt        DateTime?
+  resumedAt       DateTime?
+  completedAt     DateTime?
+  actualHours     Float?    @default(0)
+  pauseReason     String?
+  completionNotes String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([workOrderId])
+}
+
+model PaxType {
+  id                 String    @id @default(uuid())
+  name               String    @unique
+  cellPartNumber     String?
+  cellChemistry      String?   @default("LFP")
+  nominalVoltage     Float?    @default(48.0)
+  nominalCapacity    Float?
+  configuration      String?   @default("16S1P")
+  bomId              String?
+  bom                BOM?      @relation(fields: [bomId], references: [id])
+  bomNumber          String?
+  description        String?
+  cellCount          Int
+  ahMin              Float
+  ahMax              Float
+  irMin              Float
+  irMax              Float
+  retestIrMargin     Float     @default(2.0)
+  retestAhMargin     Float     @default(0.1)
+  hardFailIr         Float     @default(70.0)
+  hardFailAh         Float     @default(3.0)
+  allowedGrades      String[]  @default(["A+", "A"])
+  maxAhDifference    Float     @default(0.05)
+  maxIrDifference    Float     @default(3.0)
+  autoPackEnabled    Boolean   @default(true)
+  isProductionActive Boolean   @default(false)
+  unitPrice          Float     @default(0.0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdBy          String?
+  reservedCells      Cell[]
+  paxPacks           PaxPack[]
+  packingConfigs     PackingMaterialConfig[]
+  packingRecords     PackingRecord[]
+}
+
+model PaxPack {
+  paxSerial     String    @id
+  paxTypeId     String
+  bomId         String?
+  status        PaxStatus @default(PAX_ASSEMBLED)
+  assembledAt   DateTime  @default(now())
+  approvedBy    String?
+  approvedAt    DateTime?
+  testReportUrl String?
+  qrUrl         String?
+  cells         PaxCell[]
+  paxType       PaxType   @relation(fields: [paxTypeId], references: [id])
+  bom           BOM?      @relation(fields: [bomId], references: [id])
+  repairs       Repair[]
+  sales         Sale[]
+  workOrderId   String?
+  workOrder     WorkOrder? @relation("WorkOrderPacks", fields: [workOrderId], references: [id])
+  inspections   QualityInspection[]
+  defects       Defect[]
+  dispatchItems DispatchItem[]
+  reservations         InventoryReservation[] @relation("PaxReservations")
+  warranties           Warranty[]             @relation("PaxWarranties")
+  assembledAtStationId String?
+  assembledAtStation   ProductionStation?     @relation(fields: [assembledAtStationId], references: [id])
+  packingRecord        PackingRecord?
+}
+
+model PaxCell {
+  paxSerial  String
+  cellSerial String  @unique
+  position   Int
+  cell       Cell    @relation(fields: [cellSerial], references: [serialNumber])
+  pax        PaxPack @relation(fields: [paxSerial], references: [paxSerial])
+
+  @@id([paxSerial, cellSerial])
+}
+
+model Sale {
+  saleId       String   @id @default(uuid())
+  paxSerial    String
+  paxTypeName  String
+  saleType     SaleType
+  customerName String?
+  vendorId     String?
+  amount       Float
+  invoiceUrl   String?
+  soldAt       DateTime @default(now())
+  createdBy    String
+  pax          PaxPack  @relation(fields: [paxSerial], references: [paxSerial])
+  vendor       Vendor?  @relation(fields: [vendorId], references: [id])
+  customerId   String?
+  customer     Customer? @relation("CustomerSales", fields: [customerId], references: [id])
+  idempotencyKey String?  @unique
+}
+
+
+model Repair {
+  repairId       String   @id @default(uuid())
+  paxSerial      String
+  fixType        String
+  diagnosisNotes String
+  repairedBy     String
+  reTestResult   String?
+  repairedAt     DateTime @default(now())
+  pax            PaxPack  @relation(fields: [paxSerial], references: [paxSerial])
+  defectId       String?
+  defect         Defect?  @relation(fields: [defectId], references: [id])
+}
+
+model QcThreshold {
+  id                  String   @id @default("global")
+  ahMin               Float
+  ahMax               Float
+  irMin               Float
+  irMax               Float
+  serialDisplayLength Int?
+  updatedBy           String
+  updatedAt           DateTime @updatedAt
+}
+
+model Vendor {
+  id             String          @id @default(uuid())
+  name           String
+  contact        String?
+  phone          String?
+  email          String?
+  address        String?
+  category       String?
+  categories     String[]        @default([])
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  sales          Sale[]
+  purchaseOrders PurchaseOrder[]
+  goodsReceipts  GoodsReceipt[]
+  assets         CompanyAsset[]
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id])
+}
+
+model Material {
+  id          String    @id @default(uuid())
+  name        String
+  materialCode String?
+  description String?
+  category    String
+  sku         String    @unique
+  quantity    Int       @default(0)
+  unit        String    @default("pcs")
+  minStock    Int       @default(5)
+  unitPrice   Float     @default(0)
+  totalValue      Float     @default(0)
+  isPriceVerified Boolean   @default(false)
+  materialType String    @default("QTZ")
+  isActive    Boolean   @default(true)
+  lastRestock     DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+  bomItems    BOMItem[]
+  serviceMaterialItems ServiceMaterialItem[]
+  scrapEntries ScrapEntry[]
+  reservations InventoryReservation[]
+  quotationItems QuotationItem[]
+  salesOrderItems SalesOrderItem[]
+  purchaseRequestItems PurchaseRequestItem[]
+  purchaseOrderItems   PurchaseOrderItem[]
+  goodsReceiptItems    GoodsReceiptItem[]
+  stockMovements       StockMovement[]
+  locationBalances     MaterialLocationBalance[]
+  stockTransferItems   StockTransferItem[]
+  cellInwards          CellInwardBatch[]
+  cellTestingRequirements ProductionCellTestingRequirement[]
+  packingChecklistItems PackingChecklistItem[]
+  packingConfigs       PackingMaterialConfig[]
+}
+
+model CellMaster {
+  id              String   @id @default(uuid())
+  cellSku         String   @unique
+  cellName        String
+  chemistry       String   @default("LFP")
+  nominalVoltage  Float    @default(3.2)
+  nominalCapacity Float    @default(3.2)
+  supplier        String?
+  description     String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+}
+
+model FactorySetting {
+  id                           String   @id @default("global")
+  
+  // Financial Defaults
+  defaultPaymentTerms          String   @default("100% Advance")
+  defaultAdvancePercentage     Decimal  @db.Decimal(5, 2) @default(100.00)
+  defaultFreightAmount         Decimal  @db.Decimal(12, 2) @default(0.00)
+  defaultHandlingCharge        Decimal  @db.Decimal(12, 2) @default(0.00)
+  defaultTaxRate               Decimal  @db.Decimal(5, 2) @default(18.00)
+  defaultQuotationValidityDays  Int      @default(30)
+  defaultCurrency              String   @default("INR")
+  minimumOrderValue            Decimal  @db.Decimal(12, 2) @default(0.00)
+  
+  // Shipping & Logistics Charge Configuration
+  shippingCalculationMethod    String   @default("FLAT_RATE")
+  freeShippingThreshold        Decimal  @db.Decimal(12, 2) @default(0.00)
+  defaultShippingCarrier       String   @default("Standard Road Logistics")
+  shippingTaxRate              Decimal  @db.Decimal(5, 2) @default(18.00)
+  estimatedDeliveryLeadDays    Int      @default(3)
+  
+  // Factory Operational Defaults
+  defaultUnitSystem            String   @default("METRIC")
+  defaultTimezone              String   @default("Asia/Kolkata")
+  workingHoursPerDay           Decimal  @db.Decimal(4, 2) @default(8.00)
+  productionDaysPerWeek        Int      @default(6)
+  defaultDeliveryTerms         String   @default("EXW - Ex Works")
+  
+  updatedById                  String?
+  updatedAt                    DateTime @updatedAt
+  createdAt                    DateTime @default(now())
+}
+
+model BOM {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  items       BOMItem[]
+  paxPacks    PaxPack[]
+  paxTypes    PaxType[]
+  workOrders  WorkOrder[]
+}
+
+model BOMItem {
+  id         String   @id @default(uuid())
+  bomId      String
+  materialId String
+  quantity   Int
+  bom        BOM      @relation(fields: [bomId], references: [id])
+  material   Material @relation(fields: [materialId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  entityType String
+  entityId   String
+  actorId    String
+  actor      User     @relation(fields: [actorId], references: [id])
+  action     String
+  prevStatus String?
+  newStatus  String?
+  metadata   Json?
+  timestamp  DateTime @default(now())
+
+  @@index([entityId])
+  @@index([actorId])
+  @@index([timestamp])
+}
+
+enum Role {
+  SUPERADMIN
+  ADMIN
+  INVENTORY_MANAGER
+  TEST_ENGINEER
+  ASSEMBLY_TECHNICIAN
+  PAX_TEST_ENGINEER
+  SUPERVISOR
+  SALES_EXECUTIVE
+  ACCOUNTANT
+  PURCHASE_MANAGER
+  MARKETING_MANAGER
+  QC
+  PACKING_OPERATOR
+  SELLER
+  HR_PAYROLL
+}
+
+enum CellStatus {
+  RAW
+  CELL_TESTED
+  REJECTED
+  HOLD
+  UNMATCHED
+  RETEST_REQUIRED
+}
+
+enum PaxStatus {
+  PAX_ASSEMBLED
+  READY_FOR_PAX_TEST
+  PAX_TESTED
+  READY_FOR_PACKING
+  PACKED
+  READY_FOR_SALE
+  UNDER_REPAIR
+  SOLD_TO_VENDOR
+  SOLD_TO_CUSTOMER
+  SCRAPPED
+}
+
+enum SaleType {
+  VENDOR
+  CUSTOMER
+}
+
+model ServiceBattery {
+  id                   String                  @id @default(uuid())
+  serviceId            String                  @unique // e.g. SRV-2026-000145
+  serialNumber         String                  @unique // Unique serial for tracking
+  qrCode               String?                 // QR Code data or URL
+  customerName         String
+  customerMobile       String
+  batteryModel         String
+  originalBatterySerial String?
+  issueDescription     String
+  status               ServiceStatus           @default(RECEIVED)
+  warrantyStatus       String?
+  receivedDate         DateTime                @default(now())
+  images               String[]                // Array of image URLs
+  createdBy            String
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  version              Int                     @default(1)
+  holdReason           String?
+  holdBy               String?
+  holdDate             DateTime?
+  resumeDate           DateTime?
+  previousStatus       String?
+  repairLogs           ServiceRepairLog[]
+  materialRequests     ServiceMaterialRequest[]
+  testReports          ServiceTestReport[]
+  delivery             ServiceDelivery?
+  serviceCost          ServiceCost?
+  serviceType          String?
+  estimate             ServiceEstimate?
+  reservations         InventoryReservation[]
+  scrapApproval        ScrapApproval?
+  reopenHistory        ServiceReopenHistory[]
+  warrantyId           String?
+  warranty             Warranty?               @relation(fields: [warrantyId], references: [id])
+}
+
+model ServiceRepairLog {
+  id               String         @id @default(uuid())
+  serviceBatteryId String
+  action           String
+  notes            String?
+  technicianId     String
+  timestamp        DateTime       @default(now())
+  serviceBattery   ServiceBattery @relation(fields: [serviceBatteryId], references: [id])
+}
+
+model ServiceMaterialRequest {
+  id               String                @id @default(uuid())
+  serviceBatteryId String
+  requestedBy      String
+  status           MaterialRequestStatus @default(PENDING)
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  items            ServiceMaterialItem[]
+  serviceBattery   ServiceBattery        @relation(fields: [serviceBatteryId], references: [id])
+}
+
+model ServiceMaterialItem {
+  id                String                 @id @default(uuid())
+  requestId         String
+  materialId        String
+  quantity          Int
+  issuedUnitCost    Decimal                @db.Decimal(12,2) @default(0)
+  request           ServiceMaterialRequest @relation(fields: [requestId], references: [id])
+  material          Material               @relation(fields: [materialId], references: [id])
+}
+
+model ServiceTestReport {
+  id               String         @id @default(uuid())
+  serviceBatteryId String
+  voltageTest      String?
+  loadTest         String?
+  thermalTest      String?
+  chargingTest     String?
+  dischargeTest    String?
+  finalObservation String?
+  reportUrl        String?        // PDF report
+  images           String[]       // Array of image URLs
+  status           TestStatus
+  testedBy         String
+  createdAt        DateTime       @default(now())
+  serviceBattery   ServiceBattery @relation(fields: [serviceBatteryId], references: [id])
+}
+
+model ServiceDelivery {
+  id                String         @id @default(uuid())
+  serviceBatteryId  String         @unique
+  customerSignature String?        // URL or base64
+  deliveryDate      DateTime       @default(now())
+  paymentStatus     String?
+  warrantyUpdate    String?
+  deliveredBy       String
+  overrideBy        String?
+  overrideReason    String?
+  overrideDate      DateTime?
+  serviceBattery    ServiceBattery @relation(fields: [serviceBatteryId], references: [id])
+}
+
+enum ServiceStatus {
+  RECEIVED
+  DIAGNOSIS_PENDING
+  DIAGNOSIS_COMPLETED
+  ESTIMATE_GENERATED
+  WAITING_FOR_CUSTOMER_APPROVAL
+  MATERIAL_REQUESTED
+  MATERIAL_APPROVED
+  MATERIAL_ISSUED
+  REPAIR_IN_PROGRESS
+  REPAIR_COMPLETED
+  QC_PENDING
+  QC_IN_PROGRESS
+  TEST_FAILED
+  READY_FOR_DELIVERY
+  PAYMENT_PENDING
+  DELIVERED
+  SCRAP_RECOMMENDED
+  SCRAP
+  CANCELLED
+  ON_HOLD
+  REOPENED
+}
+
+enum MaterialRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ISSUED
+}
+
+enum TestStatus {
+  PASSED
+  FAILED
+}
+
+enum ScrapType {
+  PROFITABLE
+  LOSS
+}
+
+enum ScrapSource {
+  SERVICE
+  TESTING
+  ASSEMBLY
+  PRODUCTION
+  INVENTORY_DAMAGE
+  RETURNED_PRODUCT
+}
+
+enum ScrapStatus {
+  REPORTED
+  SCRAP_PENDING_REVIEW
+  UNDER_REVIEW
+  STORED
+  SOLD
+  RECYCLED
+  SCRAPPED
+  DISPOSED
+  REJECTED
+}
+
+enum SeverityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model ScrapEntry {
+  id                     String          @id @default(uuid())
+  scrapId                String          @unique
+  scrapType              ScrapType
+  sourceType             ScrapSource
+  status                 ScrapStatus     @default(REPORTED)
+  materialId             String
+  materialName           String
+  sku                    String
+  quantity               Int
+  unitCost               Float           @default(0)
+  totalCost              Float           @default(0)
+  estimatedRecoveryValue Float           @default(0)
+  actualSaleValue        Float           @default(0)
+  defectType             String
+  severity               SeverityLevel
+  description            String?
+  images                 String[]
+  reports                String[]
+  cellSerial             String?
+  createdBy              String
+  approvedBy             String?
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  material               Material        @relation(fields: [materialId], references: [id])
+  creator                User            @relation("ScrapCreator", fields: [createdBy], references: [id])
+  approver               User?           @relation("ScrapApprover", fields: [approvedBy], references: [id])
+  scrapInventory         ScrapInventory?
+  scrapSales             ScrapSale[]
+}
+
+model ScrapInventory {
+  id             String      @id @default(uuid())
+  scrapEntryId   String      @unique
+  quantity       Int
+  location       String
+  estimatedValue Float       @default(0)
+  currentStatus  ScrapStatus @default(STORED)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  scrapEntry     ScrapEntry  @relation(fields: [scrapEntryId], references: [id], onDelete: Cascade)
+}
+
+model ScrapSale {
+  id           String     @id @default(uuid())
+  scrapEntryId String
+  buyerName    String
+  quantitySold Int
+  salePrice    Float      @default(0)
+  saleDate     DateTime   @default(now())
+  remarks      String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  scrapEntry   ScrapEntry @relation(fields: [scrapEntryId], references: [id], onDelete: Cascade)
+}
+
+model BatchAnalytics {
+  id            String   @id @default(uuid())
+  batchNumber   String   @unique
+  totalCells    Int      @default(0)
+  passedCount   Int      @default(0)
+  failedCount   Int      @default(0)
+  retestCount   Int      @default(0)
+  stabilityScore Float   @default(100.0)
+  updatedAt     DateTime @updatedAt
+}
+
+model ServiceCost {
+  id                    String         @id @default(cuid())
+  serviceBatteryId      String         @unique
+  serviceBattery        ServiceBattery @relation(fields: [serviceBatteryId], references: [id], onDelete: Cascade)
+  
+  serviceType           String
+  materialCost          Decimal        @db.Decimal(12,2)
+  labourCost            Decimal        @db.Decimal(12,2)
+  marginPercentage      Decimal        @db.Decimal(5,2)
+  marginAmount          Decimal        @db.Decimal(12,2)
+  totalCost             Decimal        @db.Decimal(12,2)
+  amountPaid            Decimal        @db.Decimal(12,2) @default(0)
+  notes                 String?
+  
+  generatedBySystem     Boolean        @default(true)
+  approvedById          String?
+  approvedAt            DateTime?
+  
+  overrideReason        String?
+  overrideById          String?
+  overrideAt            DateTime?
+
+  materialCostSnapshot  Decimal?       @db.Decimal(12,2)
+  labourCostSnapshot    Decimal?       @db.Decimal(12,2)
+  marginPercentSnapshot Decimal?       @db.Decimal(5,2)
+  marginAmountSnapshot  Decimal?       @db.Decimal(12,2)
+  invoiceAmountSnapshot Decimal?       @db.Decimal(12,2)
+
+  overrideBy            String?
+  overrideDate          DateTime?
+  oldMaterialCost       Decimal?       @db.Decimal(12,2)
+  oldLabourCost         Decimal?       @db.Decimal(12,2)
+  oldMargin             Decimal?       @db.Decimal(5,2)
+  oldInvoiceAmount      Decimal?       @db.Decimal(12,2)
+  newInvoiceAmount      Decimal?       @db.Decimal(12,2)
+  
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+}
+
+model ServicePricingMaster {
+  id                String   @id @default(cuid())
+  serviceType       String   @unique
+  labourCost        Decimal  @db.Decimal(12,2)
+  marginPercentage  Decimal  @db.Decimal(5,2)
+  description       String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model ServiceEstimate {
+  id                 String          @id @default(uuid())
+  serviceBatteryId   String          @unique
+  materialCost       Decimal         @db.Decimal(12,2)
+  labourCost         Decimal         @db.Decimal(12,2)
+  marginAmount       Decimal         @db.Decimal(12,2)
+  totalEstimate      Decimal         @db.Decimal(12,2)
+  remarks            String?
+  approvedByCustomer Boolean         @default(false)
+  approvedDate       DateTime?
+  approvalMethod     ApprovalMethod?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  serviceBattery     ServiceBattery  @relation(fields: [serviceBatteryId], references: [id], onDelete: Cascade)
+}
+
+enum ApprovalMethod {
+  PHONE_CALL
+  WHATSAPP
+  EMAIL
+  IN_PERSON
+}
+
+model InventoryReservation {
+  id               String            @id @default(uuid())
+  materialId       String?
+  quantity         Int
+  serviceBatteryId String?
+  salesOrderId     String?
+  status           ReservationStatus @default(RESERVED)
+  reservedAt       DateTime          @default(now())
+  issuedAt         DateTime?
+  releasedAt       DateTime?
+  
+  material         Material?         @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  serviceBattery   ServiceBattery?   @relation(fields: [serviceBatteryId], references: [id], onDelete: Cascade)
+  salesOrder       SalesOrder?       @relation("SalesOrderReservations", fields: [salesOrderId], references: [id], onDelete: Cascade)
+  paxSerial        String?
+  pax              PaxPack?          @relation("PaxReservations", fields: [paxSerial], references: [paxSerial])
+
+  @@index([materialId, status])
+  @@index([paxSerial, status])
+}
+
+enum ReservationStatus {
+  RESERVED
+  ISSUED
+  RELEASED
+}
+
+model ScrapApproval {
+  id               String         @id @default(uuid())
+  serviceBatteryId String         @unique
+  recommendedBy    String
+  approvedBy       String?
+  reason           String
+  approvedDate     DateTime?
+  remarks          String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  
+  serviceBattery   ServiceBattery @relation(fields: [serviceBatteryId], references: [id], onDelete: Cascade)
+}
+
+model ServiceReopenHistory {
+  id                String         @id @default(uuid())
+  serviceBatteryId  String
+  originalServiceId String
+  reopenedBy        String
+  reason            String
+  warrantyCovered   Boolean
+  reopenDate        DateTime       @default(now())
+  
+  serviceBattery    ServiceBattery @relation(fields: [serviceBatteryId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String?
+  role      Role?
+  message   String
+  channel   String // "IN_APP" | "EMAIL" | "WHATSAPP"
+  status    String   @default("PENDING")
+  createdAt DateTime @default(now())
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+model Customer {
+  id              String         @id @default(uuid())
+  customerCode    String         @unique // Format: CUS-XXXXXX
+  type            CustomerType   @default(INDIVIDUAL)
+  name            String         // Individual's full name or Company name
+  contactPerson   String?        // Contact person for business customers
+  email           String
+  phone           String
+  alternatePhone  String?
+  billingAddress  String
+  shippingAddress String
+  city            String
+  state           String
+  country         String
+  postalCode      String
+  taxGst          String?        // Tax/GST info where applicable
+  notes           String?
+  status          CustomerStatus @default(ACTIVE)
+  assignedUserId  String?
+  assignedUser    User?          @relation("CustomerAssignee", fields: [assignedUserId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  leads           Lead[]         @relation("LeadCustomer")
+  activities      Activity[]     @relation("CustomerActivities")
+  sales           Sale[]         @relation("CustomerSales")
+  quotations      Quotation[]    @relation("CustomerQuotations")
+  salesOrders     SalesOrder[]   @relation("CustomerSalesOrders")
+  productionRequirements ProductionRequirement[] @relation("CustomerRequirements")
+  dispatchOrders  DispatchOrder[]
+  invoices        Invoice[]
+  payments        Payment[]
+  warranties      Warranty[]
+
+  @@index([customerCode])
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@index([assignedUserId])
+  @@index([createdAt])
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  CONVERTED
+  LOST
+}
+
+enum LeadPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model Lead {
+  id                   String         @id @default(uuid())
+  leadNumber           String         @unique // Format: LEAD-XXXXXX
+  name                 String         // Lead name / contact person
+  companyName          String?
+  email                String
+  phone                String
+  alternatePhone       String?
+  source               String
+  status               LeadStatus     @default(NEW)
+  priority             LeadPriority   @default(MEDIUM)
+  assignedUserId       String?
+  assignedUser         User?          @relation("LeadAssignee", fields: [assignedUserId], references: [id])
+  requirementSummary   String?
+  notes                String?
+  expectedFollowUpDate DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  convertedAt          DateTime?
+  convertedByUserId    String?
+  convertedByUser      User?          @relation("LeadConverter", fields: [convertedByUserId], references: [id])
+  convertedCustomerId  String?
+  convertedCustomer    Customer?      @relation("LeadCustomer", fields: [convertedCustomerId], references: [id])
+  activities           Activity[]     @relation("LeadActivities")
+  quotations           Quotation[]    @relation("LeadQuotations")
+  salesOrders          SalesOrder[]   @relation("LeadSalesOrders")
+
+  @@index([leadNumber])
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedUserId])
+  @@index([expectedFollowUpDate])
+  @@index([createdAt])
+}
+
+enum ActivityType {
+  CALL
+  MEETING
+  FOLLOW_UP
+  EMAIL
+  NOTE
+  TASK
+}
+
+enum ActivityStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model Activity {
+  id             String         @id @default(uuid())
+  activityType   ActivityType
+  subject        String
+  description    String?
+  leadId         String?
+  lead           Lead?          @relation("LeadActivities", fields: [leadId], references: [id])
+  customerId     String?
+  customer       Customer?      @relation("CustomerActivities", fields: [customerId], references: [id])
+  assignedUserId String?
+  assignedUser   User?          @relation("ActivityAssignee", fields: [assignedUserId], references: [id])
+  dueDate        DateTime?
+  completionDate DateTime?
+  status         ActivityStatus @default(PENDING)
+  createdByUserId String
+  createdByUser  User           @relation("ActivityCreator", fields: [createdByUserId], references: [id])
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([leadId])
+  @@index([customerId])
+  @@index([assignedUserId])
+  @@index([dueDate])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum QuotationStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  CUSTOMER_VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+model Quotation {
+  id                      String              @id @default(uuid())
+  quotationNumber         String              @unique // Format: QT-XXXXXX
+  customerId              String
+  customer                Customer            @relation("CustomerQuotations", fields: [customerId], references: [id])
+  leadId                  String?
+  lead                    Lead?               @relation("LeadQuotations", fields: [leadId], references: [id])
+  createdById             String
+  createdBy               User                @relation("QuotationCreator", fields: [createdById], references: [id])
+  assignedSalesUserId     String?
+  assignedSalesUser       User?               @relation("QuotationSalesUser", fields: [assignedSalesUserId], references: [id])
+  quotationDate           DateTime            @default(now())
+  validUntil              DateTime
+  status                  QuotationStatus     @default(DRAFT)
+  currency                String              @default("INR")
+  subtotal                Decimal             @db.Decimal(12,2)
+  discount                Decimal             @db.Decimal(12,2)
+  tax                     Decimal             @db.Decimal(12,2)
+  additionalCharges       Decimal             @db.Decimal(12,2) @default(0)
+  grandTotal              Decimal             @db.Decimal(12,2)
+  paymentTerms            String
+  deliveryTerms           String
+  notes                   String?
+  internalNotes           String?
+  customerNotes           String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  version                 Int                 @default(1)
+  
+  // Snapshots to keep details stable over time
+  customerNameSnapshot    String
+  customerEmailSnapshot   String
+  customerPhoneSnapshot   String
+  billingAddressSnapshot  String
+  shippingAddressSnapshot String
+  citySnapshot            String
+  stateSnapshot           String
+  countrySnapshot         String
+  postalCodeSnapshot      String
+
+  items                   QuotationItem[]     @relation("QuotationItems")
+  revisions               QuotationRevision[] @relation("QuotationRevisions")
+  approvals               QuotationApproval[] @relation("QuotationApprovals")
+  salesOrder              SalesOrder?         @relation("QuotationSalesOrder")
+
+  @@index([quotationNumber])
+  @@index([customerId])
+  @@index([leadId])
+  @@index([status])
+  @@index([createdById])
+  @@index([assignedSalesUserId])
+  @@index([quotationDate])
+  @@index([validUntil])
+  @@index([createdAt])
+}
+
+model QuotationItem {
+  id             String    @id @default(uuid())
+  quotationId    String
+  quotation      Quotation @relation("QuotationItems", fields: [quotationId], references: [id], onDelete: Cascade)
+  productRef     String?   // Product or SKU
+  materialId     String?
+  material       Material? @relation(fields: [materialId], references: [id])
+  description    String
+  quantity       Int
+  unitPrice      Decimal   @db.Decimal(12,2)
+  discount       Decimal   @db.Decimal(12,2) @default(0)
+  taxRate        Decimal   @db.Decimal(5,2) @default(0)
+  taxAmount      Decimal   @db.Decimal(12,2)
+  lineSubtotal   Decimal   @db.Decimal(12,2)
+  lineTotal      Decimal   @db.Decimal(12,2)
+  specification  String?
+  notes          String?
+}
+
+model QuotationRevision {
+  id           String    @id @default(uuid())
+  quotationId  String
+  quotation    Quotation @relation("QuotationRevisions", fields: [quotationId], references: [id], onDelete: Cascade)
+  version      Int
+  snapshot     Json
+  createdAt    DateTime  @default(now())
+  createdById  String
+  createdBy    User      @relation("RevisionCreator", fields: [createdById], references: [id])
+}
+
+model QuotationApproval {
+  id            String    @id @default(uuid())
+  quotationId   String
+  quotation     Quotation @relation("QuotationApprovals", fields: [quotationId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User      @relation("ApprovalRequester", fields: [requestedById], references: [id])
+  decidedById   String?
+  decidedBy     User?     @relation("ApprovalDecider", fields: [decidedById], references: [id])
+  status        String    // "PENDING", "APPROVED", "REJECTED"
+  comments      String?
+  reason        String?   // Reason when rejected
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+enum SalesOrderStatus {
+  DRAFT
+  CONFIRMED
+  PAYMENT_PENDING
+  READY_FOR_FULFILLMENT
+  IN_FULFILLMENT
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CANCELLED
+  ON_HOLD
+}
+
+enum SalesOrderPaymentStatus {
+  NOT_REQUIRED
+  PENDING
+  PARTIALLY_PAID
+  PAID
+}
+
+enum FulfillmentType {
+  FROM_STOCK
+  PRODUCTION_REQUIRED
+}
+
+model SalesOrder {
+  id                      String                  @id @default(uuid())
+  salesOrderNumber        String                  @unique // Format: SO-XXXXXX
+  customerId              String
+  customer                Customer                @relation("CustomerSalesOrders", fields: [customerId], references: [id])
+  quotationId             String?                 @unique // Enforces unique conversion!
+  quotation               Quotation?              @relation("QuotationSalesOrder", fields: [quotationId], references: [id])
+  leadId                  String?
+  lead                    Lead?                   @relation("LeadSalesOrders", fields: [leadId], references: [id])
+  createdById             String
+  createdBy               User                    @relation("SalesOrderCreator", fields: [createdById], references: [id])
+  assignedSalesUserId     String?
+  assignedSalesUser       User?                   @relation("SalesOrderSalesUser", fields: [assignedSalesUserId], references: [id])
+  orderDate               DateTime                @default(now())
+  requiredDeliveryDate    DateTime
+  status                  SalesOrderStatus        @default(DRAFT)
+  paymentStatus           SalesOrderPaymentStatus @default(PENDING)
+  currency                String                  @default("INR")
+  subtotal                Decimal                 @db.Decimal(12,2)
+  discount                Decimal                 @db.Decimal(12,2)
+  tax                     Decimal                 @db.Decimal(12,2)
+  additionalCharges       Decimal                 @db.Decimal(12,2) @default(0)
+  grandTotal              Decimal                 @db.Decimal(12,2)
+  paymentTerms            String
+  deliveryTerms           String
+  billingAddressSnapshot  String
+  shippingAddressSnapshot String
+  customerNotes           String?
+  internalNotes           String?
+  priority                String                  @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+
+  isFinancialCleared      Boolean                 @default(false)
+  financialClearedAt      DateTime?
+  financialClearedById    String?
+  financialOriginalAmount Decimal?                @db.Decimal(12,2)
+  financialClearedBy      User?                   @relation("SalesOrderFinancialClearance", fields: [financialClearedById], references: [id])
+
+  items                   SalesOrderItem[]        @relation("SalesOrderItems")
+  reservations            InventoryReservation[]  @relation("SalesOrderReservations")
+  productionRequirements  ProductionRequirement[] @relation("SalesOrderRequirements")
+  workOrders              WorkOrder[]             @relation("SalesOrderWorkOrders")
+  dispatchOrders          DispatchOrder[]
+  invoices                Invoice[]
+  payments                Payment[]               @relation("SalesOrderPayments")
+  warranties              Warranty[]
+
+  @@index([salesOrderNumber])
+  @@index([customerId])
+  @@index([quotationId])
+  @@index([leadId])
+  @@index([status])
+  @@index([createdById])
+  @@index([assignedSalesUserId])
+  @@index([requiredDeliveryDate])
+  @@index([createdAt])
+}
+
+model SalesOrderItem {
+  id                     String          @id @default(uuid())
+  salesOrderId           String
+  salesOrder             SalesOrder      @relation("SalesOrderItems", fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productRef             String?
+  materialId             String?
+  material               Material?       @relation(fields: [materialId], references: [id])
+  description            String
+  quantityOrdered        Int
+  quantityFulfilled      Int             @default(0)
+  quantityPending        Int
+  quantityCancelled      Int             @default(0)
+  unitPrice              Decimal         @db.Decimal(12,2)
+  discount               Decimal         @db.Decimal(12,2) @default(0)
+  taxRate                Decimal         @db.Decimal(5,2) @default(0)
+  taxAmount              Decimal         @db.Decimal(12,2)
+  lineSubtotal           Decimal         @db.Decimal(12,2)
+  lineTotal              Decimal         @db.Decimal(12,2)
+  specification          String?
+  sourceQuotationItemId  String?
+  fulfillmentType        FulfillmentType @default(FROM_STOCK)
+  productionRequirements ProductionRequirement[] @relation("OrderItemRequirements")
+  dispatchItems          DispatchItem[]
+  invoiceItems           InvoiceItem[]
+}
+
+enum PurchaseRequestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  ORDERED
+  PARTIALLY_RECEIVED
+  COMPLETED
+  CANCELLED
+  REJECTED
+}
+
+enum PurchaseRequestSource {
+  MANUAL
+  SALES_ORDER
+  PRODUCTION_REQUIREMENT
+  LOW_STOCK
+  SERVICE
+}
+
+enum PurchaseRequestPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model PurchaseRequest {
+  id                String                  @id @default(uuid())
+  prNumber          String                  @unique // PR-000001
+  requestedById     String
+  requestedBy       User                    @relation("PRRequester", fields: [requestedById], references: [id])
+  source            PurchaseRequestSource   @default(MANUAL)
+  sourceReferenceId String?                 // e.g. SalesOrder ID
+  priority          PurchaseRequestPriority @default(NORMAL)
+  requiredDate      DateTime
+  status            PurchaseRequestStatus   @default(DRAFT)
+  reason            String?
+  notes             String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  items             PurchaseRequestItem[]
+  approvals         PurchaseRequestApproval[]
+  purchaseOrders    PurchaseOrder[]
+
+  @@index([prNumber])
+  @@index([status])
+  @@index([priority])
+  @@index([requiredDate])
+}
+
+model PurchaseRequestItem {
+  id                String          @id @default(uuid())
+  purchaseRequestId String
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+  materialId        String
+  material          Material        @relation(fields: [materialId], references: [id])
+  requestedQuantity Int
+  requiredDate      DateTime
+  specification     String?
+  notes             String?
+}
+
+model PurchaseRequestApproval {
+  id                String          @id @default(uuid())
+  purchaseRequestId String
+  purchaseRequest   PurchaseRequest @relation(fields: [purchaseRequestId], references: [id], onDelete: Cascade)
+  requestedById     String
+  requestedBy       User            @relation("PRApprovalRequester", fields: [requestedById], references: [id])
+  decidedById       String?
+  decidedBy         User?           @relation("PRApprovalDecider", fields: [decidedById], references: [id])
+  status            String          // "APPROVED", "REJECTED"
+  comments          String?
+  reason            String?         // Rejection reason
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+  REJECTED
+}
+
+model PurchaseOrder {
+  id                  String              @id @default(uuid())
+  poNumber            String              @unique // PO-000001
+  vendorId            String
+  vendor              Vendor              @relation(fields: [vendorId], references: [id])
+  purchaseRequestId   String?
+  purchaseRequest     PurchaseRequest?    @relation(fields: [purchaseRequestId], references: [id])
+  createdById         String
+  createdBy           User                @relation("POCreator", fields: [createdById], references: [id])
+  orderDate           DateTime            @default(now())
+  expectedDeliveryDate DateTime
+  status              PurchaseOrderStatus @default(DRAFT)
+  currency            String              @default("INR")
+  subtotal            Decimal             @db.Decimal(12,2)
+  discount            Decimal             @db.Decimal(12,2) @default(0)
+  tax                 Decimal             @db.Decimal(12,2) @default(0)
+  additionalCharges   Decimal             @db.Decimal(12,2) @default(0)
+  grandTotal          Decimal             @db.Decimal(12,2)
+  paymentTerms        String
+  deliveryTerms       String
+  billingAddress      String
+  deliveryAddress     String
+  notes               String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  items               PurchaseOrderItem[]
+  goodsReceipts       GoodsReceipt[]
+
+  @@index([poNumber])
+  @@index([vendorId])
+  @@index([status])
+}
+
+model PurchaseOrderItem {
+  id               String        @id @default(uuid())
+  purchaseOrderId  String
+  purchaseOrder    PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  materialId       String
+  material         Material      @relation(fields: [materialId], references: [id])
+  description      String
+  quantityOrdered  Int
+  quantityReceived Int           @default(0)
+  quantityPending  Int
+  quantityCancelled Int          @default(0)
+  unitPrice        Decimal       @db.Decimal(12,2)
+  discount         Decimal       @db.Decimal(12,2) @default(0)
+  taxRate          Decimal       @db.Decimal(5,2) @default(0)
+  taxAmount        Decimal       @db.Decimal(12,2)
+  lineSubtotal     Decimal       @db.Decimal(12,2)
+  lineTotal        Decimal       @db.Decimal(12,2)
+  specification    String?
+}
+
+enum GoodsReceiptStatus {
+  EXPECTED
+  RECEIVING
+  QC_PENDING
+  ACCEPTED
+  PARTIALLY_ACCEPTED
+  REJECTED
+  STOCKED
+}
+
+model GoodsReceipt {
+  id              String             @id @default(uuid())
+  grnNumber       String             @unique // GRN-000001
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  vendorId        String
+  vendor          Vendor             @relation(fields: [vendorId], references: [id])
+  receivedDate    DateTime           @default(now())
+  receivedById    String
+  receivedBy      User               @relation("GRNReceiver", fields: [receivedById], references: [id])
+  warehouseId     String?
+  warehouse       Warehouse?         @relation(fields: [warehouseId], references: [id])
+  status          GoodsReceiptStatus @default(EXPECTED)
+  notes           String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  items           GoodsReceiptItem[]
+
+  @@index([grnNumber])
+  @@index([purchaseOrderId])
+  @@index([vendorId])
+}
+
+model GoodsReceiptItem {
+  id                String       @id @default(uuid())
+  goodsReceiptId    String
+  goodsReceipt      GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  materialId        String
+  material          Material     @relation(fields: [materialId], references: [id])
+  quantityOrdered   Int
+  quantityReceived  Int
+  quantityAccepted  Int          @default(0)
+  quantityRejected  Int          @default(0)
+  quantityDamaged   Int          @default(0)
+  batchNumber       String?
+  serialNumber      String?
+  inspectionStatus  String       @default("PENDING") // PENDING, PASSED, FAILED
+  notes             String?
+}
+
+model Warehouse {
+  id        String              @id @default(uuid())
+  name      String              @unique
+  code      String              @unique
+  address   String?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  locations WarehouseLocation[]
+  stockBalances MaterialLocationBalance[]
+  goodsReceipts GoodsReceipt[]
+  originTransfers      StockTransfer[]     @relation("OriginWarehouse")
+  destinationTransfers StockTransfer[]     @relation("DestinationWarehouse")
+  packingRecords       PackingRecord[]
+  assets               CompanyAsset[]
+}
+
+model WarehouseLocation {
+  id          String              @id @default(uuid())
+  warehouseId String
+  warehouse   Warehouse           @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  name        String
+  code        String
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  stockBalances MaterialLocationBalance[]
+  originTransferItems      StockTransferItem[] @relation("OriginLocation")
+  destinationTransferItems StockTransferItem[] @relation("DestinationLocation")
+  packingRecords           PackingRecord[]
+
+  @@unique([warehouseId, code])
+}
+
+model MaterialLocationBalance {
+  id          String            @id @default(uuid())
+  materialId  String
+  material    Material          @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse         @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  locationId  String
+  location    WarehouseLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  quantity    Int               @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([materialId, warehouseId, locationId])
+}
+
+enum StockMovementType {
+  RECEIPT
+  ISSUE
+  RESERVATION
+  RESERVATION_RELEASE
+  ADJUSTMENT
+  RETURN
+  TRANSFER
+}
+
+model StockMovement {
+  id            String            @id @default(uuid())
+  materialId    String
+  material      Material          @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  quantity      Int
+  movementType  StockMovementType
+  source        String
+  referenceId   String?
+  warehouseId   String?
+  locationId    String?
+  userId        String
+  user          User              @relation(fields: [userId], references: [id])
+  timestamp     DateTime          @default(now())
+  reason        String?
+}
+
+enum ProductionRequirementStatus {
+  PENDING
+  MATERIAL_CHECK
+  READY
+  PLANNED
+  IN_PRODUCTION
+  COMPLETED
+  CLOSED
+  CANCELLED
+  MATERIAL_SHORTAGE
+}
+
+enum ProductionPlanStatus {
+  DRAFT
+  PLANNED
+  RELEASED
+  IN_PROGRESS
+  COMPLETED
+  CLOSED
+  ON_HOLD
+  CANCELLED
+}
+
+enum WorkOrderStatus {
+  CREATED
+  ASSIGNED
+  READY
+  IN_PROGRESS
+  QC_PENDING
+  COMPLETED
+  CLOSED
+  ON_HOLD
+  CANCELLED
+}
+
+model ProductionRequirement {
+  id                    String                      @id @default(uuid())
+  requirementNumber     String                      @unique // PRD-000001
+  salesOrderId          String
+  salesOrder            SalesOrder                  @relation("SalesOrderRequirements", fields: [salesOrderId], references: [id])
+  salesOrderItemId      String
+  salesOrderItem        SalesOrderItem              @relation("OrderItemRequirements", fields: [salesOrderItemId], references: [id])
+  customerId            String
+  customer              Customer                    @relation("CustomerRequirements", fields: [customerId], references: [id])
+  productRef            String?
+  requiredQuantity      Int
+  requiredDeliveryDate  DateTime
+  priority              String                      @default("NORMAL") // LOW, NORMAL, HIGH, URGENT
+  fulfillmentType       FulfillmentType             @default(PRODUCTION_REQUIRED)
+  status                ProductionRequirementStatus @default(PENDING)
+  createdById           String
+  createdBy             User                        @relation("ReqCreator", fields: [createdById], references: [id])
+  notes                 String?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  plans                 ProductionPlan[]
+  workOrders            WorkOrder[]
+
+  @@index([requirementNumber])
+  @@index([salesOrderId])
+  @@index([customerId])
+  @@index([status])
+}
+
+model ProductionPlan {
+  id                    String               @id @default(uuid())
+  planNumber            String               @unique // PLAN-000001
+  productionRequirementId String
+  productionRequirement ProductionRequirement @relation(fields: [productionRequirementId], references: [id])
+  plannedStartDate      DateTime
+  plannedCompletionDate DateTime
+  priority              String               @default("NORMAL")
+  plannedQuantity       Int
+  supervisorId          String?
+  supervisor            User?                @relation("PlanSupervisor", fields: [supervisorId], references: [id])
+  status                ProductionPlanStatus @default(DRAFT)
+  notes                 String?
+  createdById           String
+  createdBy             User                 @relation("PlanCreator", fields: [createdById], references: [id])
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  workOrders            WorkOrder[]
+
+  @@index([planNumber])
+  @@index([status])
+}
+
+model WorkOrder {
+  id                    String            @id @default(uuid())
+  workOrderNumber       String            @unique // WO-000001
+  productionPlanId      String?
+  productionPlan        ProductionPlan?   @relation(fields: [productionPlanId], references: [id])
+  productionRequirementId String?
+  productionRequirement ProductionRequirement? @relation(fields: [productionRequirementId], references: [id])
+  salesOrderId          String?
+  salesOrder            SalesOrder?       @relation("SalesOrderWorkOrders", fields: [salesOrderId], references: [id])
+  productRef            String?
+  bomId                 String?
+  bom                   BOM?              @relation(fields: [bomId], references: [id])
+  plannedQuantity       Int
+  startedQuantity       Int               @default(0)
+  completedQuantity     Int               @default(0)
+  rejectedQuantity      Int               @default(0)
+  remainingQuantity     Int
+  startDate             DateTime?
+  dueDate               DateTime
+  supervisorId          String?
+  supervisor            User?             @relation("WOSupervisor", fields: [supervisorId], references: [id])
+  status                WorkOrderStatus   @default(CREATED)
+  notes                 String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  operators             WorkOrderOperator[]
+  packs                 PaxPack[]         @relation("WorkOrderPacks")
+  inspections           QualityInspection[]
+  defects               Defect[]
+  scheduling            WorkOrderScheduling?
+  execution             WorkOrderExecution?
+  cellTestingRequirements ProductionCellTestingRequirement[]
+
+  @@index([workOrderNumber])
+  @@index([status])
+}
+
+model WorkOrderOperator {
+  id           String    @id @default(uuid())
+  workOrderId  String
+  workOrder    WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  role         String    @default("OPERATOR")
+  assignedAt   DateTime  @default(now())
+  status       String    @default("ACTIVE") // ACTIVE, INACTIVE
+}
+
+model QualityInspection {
+  id               String              @id @default(uuid())
+  inspectionNumber String              @unique // QC-000001
+  workOrderId      String?
+  workOrder        WorkOrder?          @relation(fields: [workOrderId], references: [id])
+  paxSerial        String?
+  pax              PaxPack?            @relation(fields: [paxSerial], references: [paxSerial])
+  inspectionType   String              // IN_PROCESS, FINAL
+  inspectorId      String
+  inspector        User                @relation("Inspector", fields: [inspectorId], references: [id])
+  status           String              @default("PENDING") // PENDING, COMPLETED, CANCELLED
+  result           String              // PASS, FAIL, HOLD, RETEST
+  notes            String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  checkpoints      QualityCheckpoint[]
+  defects          Defect[]
+
+  @@index([inspectionNumber])
+  @@index([status])
+}
+
+model QualityCheckpoint {
+  id            String            @id @default(uuid())
+  inspectionId  String
+  inspection    QualityInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  expectedValue String?
+  actualValue   String?
+  result        String            // PASS, FAIL
+  notes         String?
+}
+
+model Defect {
+  id               String             @id @default(uuid())
+  defectNumber     String             @unique // DEF-000001
+  workOrderId      String?
+  workOrder        WorkOrder?         @relation(fields: [workOrderId], references: [id])
+  paxSerial        String?
+  pax              PaxPack?           @relation(fields: [paxSerial], references: [paxSerial])
+  inspectionId     String?
+  inspection       QualityInspection? @relation(fields: [inspectionId], references: [id])
+  defectType       String
+  severity         String             // LOW, MEDIUM, HIGH, CRITICAL
+  description      String
+  rootCause        String?
+  disposition      String?            // REWORK, REPAIR, SCRAP, HOLD
+  status           String             @default("OPEN") // OPEN, UNDER_REVIEW, RESOLVED, CLOSED
+  reportedById     String
+  reportedBy       User               @relation("DefectReporter", fields: [reportedById], references: [id])
+  resolvedById     String?
+  resolvedBy       User?              @relation("DefectResolver", fields: [resolvedById], references: [id])
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  repairs          Repair[]
+
+  @@index([defectNumber])
+  @@index([status])
+}
+
+model DispatchOrder {
+  id                      String            @id @default(uuid())
+  dispatchNumber          String            @unique // DO-000001
+  salesOrderId            String
+  salesOrder              SalesOrder        @relation(fields: [salesOrderId], references: [id])
+  customerId              String
+  customer                Customer          @relation(fields: [customerId], references: [id])
+  createdById             String
+  createdBy               User              @relation("DOCreator", fields: [createdById], references: [id])
+  assignedUserId          String?
+  assignedUser            User?             @relation("DOAssignee", fields: [assignedUserId], references: [id])
+  dispatchDate            DateTime?
+  plannedDispatchDate     DateTime
+  deliveryAddressSnapshot String
+  status                  String            @default("DRAFT") // DRAFT, READY_TO_PICK, PICKING, PICKED, PACKING, PACKED, READY_TO_DISPATCH, DISPATCHED, IN_TRANSIT, DELIVERED, CANCELLED, ON_HOLD, DELIVERY_EXCEPTION
+  priority                String            @default("NORMAL")
+  shippingMethod          String?
+  carrier                 String?
+  trackingNumber          String?
+  notes                   String?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  items                   DispatchItem[]
+  packages                DeliveryPackage[]
+  shipments               Shipment[]
+  invoices                Invoice[]
+
+  @@index([dispatchNumber])
+  @@index([status])
+}
+
+model DispatchItem {
+  id                String         @id @default(uuid())
+  dispatchOrderId   String
+  dispatchOrder     DispatchOrder  @relation(fields: [dispatchOrderId], references: [id], onDelete: Cascade)
+  salesOrderItemId  String
+  salesOrderItem    SalesOrderItem @relation(fields: [salesOrderItemId], references: [id])
+  productRef        String?
+  quantityOrdered   Int
+  quantityDispatched Int
+  quantityPicked    Int            @default(0)
+  quantityPacked    Int            @default(0)
+  quantityDelivered Int            @default(0)
+  paxSerial         String?
+  pax               PaxPack?       @relation(fields: [paxSerial], references: [paxSerial])
+  notes             String?
+}
+
+model DeliveryPackage {
+  id                String        @id @default(uuid())
+  packageNumber     String        @unique // PKG-000001
+  dispatchOrderId   String
+  dispatchOrder     DispatchOrder @relation(fields: [dispatchOrderId], references: [id], onDelete: Cascade)
+  weight            Float?
+  dimensions        String?
+  packageType       String?       // BOX, PALLET, CRATE
+  trackingReference String?
+  status            String        @default("PACKED")
+
+  @@index([packageNumber])
+}
+
+model Shipment {
+  id                   String            @id @default(uuid())
+  shipmentNumber       String            @unique // SHIP-000001
+  dispatchOrderId      String
+  dispatchOrder        DispatchOrder     @relation(fields: [dispatchOrderId], references: [id])
+  carrier              String
+  shippingMethod       String
+  trackingNumber       String?
+  pickupDate           DateTime?
+  expectedDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
+  status               String            @default("PENDING") // PENDING, IN_TRANSIT, DELIVERED, EXCEPTION
+  deliveryNotes        String?
+  proofsOfDelivery     ProofOfDelivery[]
+
+  @@index([shipmentNumber])
+}
+
+model ProofOfDelivery {
+  id                 String   @id @default(uuid())
+  shipmentId         String
+  shipment           Shipment @relation(fields: [shipmentId], references: [id])
+  deliveryDate       DateTime @default(now())
+  deliveredBy        String?
+  recipientName      String
+  recipientContact   String?
+  signatureReference String?
+  deliveryNotes      String?
+  attachmentUrl      String?
+}
+
+model Invoice {
+  id                      String            @id @default(uuid())
+  invoiceNumber          String            @unique // INV-000001
+  customerId              String
+  customer                Customer          @relation(fields: [customerId], references: [id])
+  salesOrderId            String?
+  salesOrder              SalesOrder?       @relation(fields: [salesOrderId], references: [id])
+  dispatchOrderId         String?
+  dispatchOrder           DispatchOrder?    @relation(fields: [dispatchOrderId], references: [id])
+  invoiceDate             DateTime          @default(now())
+  dueDate                 DateTime
+  status                  String            @default("DRAFT") // DRAFT, ISSUED, PARTIALLY_PAID, PAID, CANCELLED, VOID
+  currency                String            @default("INR")
+  subtotal                Decimal           @db.Decimal(12,2)
+  discount                Decimal           @db.Decimal(12,2) @default(0)
+  taxableAmount           Decimal           @db.Decimal(12,2)
+  tax                     Decimal           @db.Decimal(12,2)
+  additionalCharges       Decimal           @db.Decimal(12,2) @default(0)
+  grandTotal              Decimal           @db.Decimal(12,2)
+  paidAmount              Decimal           @db.Decimal(12,2) @default(0)
+  outstandingAmount       Decimal           @db.Decimal(12,2)
+  paymentTerms            String
+  billingAddressSnapshot  String
+  shippingAddressSnapshot String
+  notes                   String?
+  createdById             String
+  createdBy               User              @relation("InvoiceCreator", fields: [createdById], references: [id])
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  items                   InvoiceItem[]
+  payments                Payment[]
+  warranties              Warranty[]
+
+  @@index([invoiceNumber])
+  @@index([status])
+}
+
+model InvoiceItem {
+  id                String          @id @default(uuid())
+  invoiceId         String
+  invoice           Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  salesOrderItemId  String?
+  salesOrderItem    SalesOrderItem? @relation(fields: [salesOrderItemId], references: [id])
+  productRef        String?
+  description       String
+  quantity          Int
+  unitPrice         Decimal         @db.Decimal(12,2)
+  discount          Decimal         @db.Decimal(12,2) @default(0)
+  taxRate           Decimal         @db.Decimal(5,2) @default(0)
+  taxAmount         Decimal         @db.Decimal(12,2)
+  lineSubtotal      Decimal         @db.Decimal(12,2)
+  lineTotal         Decimal         @db.Decimal(12,2)
+}
+
+model Payment {
+  id               String      @id @default(uuid())
+  paymentReference String      @unique // PAY-000001
+  customerId       String
+  customer         Customer    @relation(fields: [customerId], references: [id])
+  invoiceId        String?
+  invoice          Invoice?    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  salesOrderId     String?
+  salesOrder       SalesOrder? @relation("SalesOrderPayments", fields: [salesOrderId], references: [id], onDelete: Cascade)
+  paymentDate      DateTime    @default(now())
+  amount           Decimal     @db.Decimal(12,2)
+  paymentMethod    String      // CASH, BANK_TRANSFER, CARD, UPI, CHEQUE, OTHER
+  referenceNumber  String?
+  bankDetails      String?
+  notes            String?
+  paymentProofUrl  String?
+  status           String      @default("PENDING_VERIFICATION") // PENDING_VERIFICATION, VERIFIED, REJECTED
+  rejectionReason  String?
+  recordedById     String
+  recordedBy       User        @relation("PaymentRecorder", fields: [recordedById], references: [id])
+  verifiedById     String?
+  verifiedBy       User?       @relation("PaymentVerifier", fields: [verifiedById], references: [id])
+  verifiedAt       DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([paymentReference])
+  @@index([salesOrderId])
+  @@index([invoiceId])
+  @@index([status])
+}
+
+model Warranty {
+  id                      String           @id @default(uuid())
+  warrantyNumber          String           @unique // WAR-000001
+  customerId              String
+  customer                Customer         @relation(fields: [customerId], references: [id])
+  paxSerial               String?
+  pax                     PaxPack?         @relation("PaxWarranties", fields: [paxSerial], references: [paxSerial])
+  salesOrderId            String?
+  salesOrder              SalesOrder?      @relation(fields: [salesOrderId], references: [id])
+  invoiceId               String?
+  invoice                 Invoice?         @relation(fields: [invoiceId], references: [id])
+  deliveryDate            DateTime
+  warrantyStartDate       DateTime
+  warrantyEndDate         DateTime
+  warrantyDurationMonths  Int
+  status                  String           @default("ACTIVE") // PENDING, ACTIVE, EXPIRING, EXPIRED, CLAIMED, SUSPENDED
+  coverageType            String           @default("FULL") // PARTS, LABOUR, FULL
+  terms                   String?
+  exclusions              String?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
+  serviceBatteries        ServiceBattery[]
+
+  @@index([warrantyNumber])
+  @@index([status])
+}
+
+model ProductionStation {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  code        String   @unique
+  type        String   // "ASSEMBLY" or "TESTING"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  assignments StationOperatorAssignment[]
+  paxPacks    PaxPack[]
+  packingRecords PackingRecord[]
+}
+
+model StationOperatorAssignment {
+  id         String            @id @default(uuid())
+  stationId  String
+  station    ProductionStation @relation(fields: [stationId], references: [id], onDelete: Cascade)
+  operatorId String
+  operator   User              @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  assignedAt DateTime          @default(now())
+  releasedAt DateTime?
+
+  @@index([stationId])
+  @@index([operatorId])
+}
+
+model StockTransfer {
+  id                     String              @id @default(uuid())
+  transferNumber         String              @unique
+  originWarehouseId      String
+  originWarehouse        Warehouse           @relation("OriginWarehouse", fields: [originWarehouseId], references: [id], onDelete: Cascade)
+  destinationWarehouseId String
+  destinationWarehouse   Warehouse           @relation("DestinationWarehouse", fields: [destinationWarehouseId], references: [id], onDelete: Cascade)
+  status                 String              @default("REQUESTED") // REQUESTED, APPROVED, IN_TRANSIT, RECEIVED, CANCELLED
+  createdById            String
+  createdBy              User                @relation("TransferCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  approvedById           String?
+  approvedBy             User?               @relation("TransferApprover", fields: [approvedById], references: [id], onDelete: Cascade)
+  shippedAt              DateTime?
+  receivedAt             DateTime?
+  notes                  String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  items                  StockTransferItem[]
+}
+
+model StockTransferItem {
+  id                    String            @id @default(uuid())
+  transferId            String
+  transfer              StockTransfer     @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  materialId            String
+  material              Material          @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  quantityRequested     Int
+  quantityShipped       Int               @default(0)
+  quantityReceived      Int               @default(0)
+  originLocationId      String
+  originLocation        WarehouseLocation @relation("OriginLocation", fields: [originLocationId], references: [id], onDelete: Cascade)
+  destinationLocationId String
+  destinationLocation   WarehouseLocation @relation("DestinationLocation", fields: [destinationLocationId], references: [id], onDelete: Cascade)
+}
+
+model ProductionCellTestingRequirement {
+  id                String    @id @default(uuid())
+  requirementNumber String    @unique // PCTR-000001
+  workOrderId       String
+  workOrder         WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  materialId        String?
+  material          Material? @relation(fields: [materialId], references: [id])
+  cellSku           String    // e.g. "CELL-LFP-3200"
+  cellName          String    // e.g. "Lithium Iron Phosphate Cell 3.2V 3200mAh"
+  requiredQuantity  Int       // e.g. 160
+  testedQuantity    Int       @default(0) // incremented on each PASS
+  remainingQuantity Int       // requiredQuantity - testedQuantity
+  status            String    @default("IN_PROGRESS") // IN_PROGRESS, COMPLETED, ON_HOLD, CANCELLED
+  activatedAt       DateTime  @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  testedCells       Cell[]    @relation("CellTestingRequirementCells")
+
+  @@unique([workOrderId, cellSku])
+  @@index([workOrderId])
+  @@index([cellSku])
+  @@index([status])
+}
+
+enum PackingStatus {
+  READY_FOR_PACKING
+  PACKING_IN_PROGRESS
+  CHECKLIST_PENDING
+  PACKING_CONFIRMED
+  STICKER_GENERATED
+  PACKED
+  TRANSFER_PENDING
+  TRANSFERRED_TO_FINISHED_GOODS
+}
+
+model PackingRecord {
+  id                     String                 @id @default(uuid())
+  packingNumber          String                 @unique // PK-2026-000001
+  paxSerial              String                 @unique
+  pax                    PaxPack                @relation(fields: [paxSerial], references: [paxSerial], onDelete: Cascade)
+  paxTypeId              String
+  paxType                PaxType                @relation(fields: [paxTypeId], references: [id])
+  operatorId             String
+  operator               User                   @relation("PackingOperator", fields: [operatorId], references: [id])
+  stationId              String?
+  station                ProductionStation?     @relation(fields: [stationId], references: [id])
+  startedAt              DateTime               @default(now())
+  completedAt            DateTime?
+  status                 PackingStatus          @default(READY_FOR_PACKING)
+  stickerNumber          String?                @unique // STK-2026-000001
+  stickerGeneratedAt     DateTime?
+  stickerPrintedAt       DateTime?
+  qrData                 String?
+  boxCondition           String?                @default("GOOD")
+  boxSealed              Boolean                @default(false)
+  destinationWarehouseId String?
+  destinationWarehouse   Warehouse?             @relation(fields: [destinationWarehouseId], references: [id])
+  destinationLocationId  String?
+  destinationLocation    WarehouseLocation?     @relation(fields: [destinationLocationId], references: [id])
+  transferredAt          DateTime?
+  notes                  String?
+  checklistItems         PackingChecklistItem[]
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  @@index([packingNumber])
+  @@index([paxSerial])
+  @@index([status])
+  @@index([operatorId])
+}
+
+model PackingChecklistItem {
+  id              String        @id @default(uuid())
+  packingRecordId String
+  packingRecord   PackingRecord @relation(fields: [packingRecordId], references: [id], onDelete: Cascade)
+  itemType        String        // "MATERIAL" or "BOX"
+  itemName        String
+  materialId      String?
+  material        Material?     @relation(fields: [materialId], references: [id])
+  required        Boolean       @default(true)
+  verified        Boolean       @default(false)
+  quantity        Int           @default(1)
+  condition       String        @default("GOOD") // GOOD, DAMAGED, N/A
+  notes           String?
+  verifiedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([packingRecordId])
+}
+
+model PackingMaterialConfig {
+  id             String    @id @default(uuid())
+  paxTypeId      String
+  paxType        PaxType   @relation(fields: [paxTypeId], references: [id], onDelete: Cascade)
+  materialId     String?
+  material       Material? @relation(fields: [materialId], references: [id])
+  name           String
+  quantity       Int       @default(1)
+  isRequired     Boolean   @default(true)
+  notes          String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([paxTypeId])
+}
+
+// ==========================================
+// COMPANY ASSETS MANAGEMENT (DEDICATED DOMAIN)
+// ==========================================
+
+enum AssetCategory {
+  MACHINERY
+  TESTING_EQUIPMENT
+  TOOLING
+  IT_HARDWARE
+  VEHICLE
+  FURNITURE
+  SAFETY_EQUIPMENT
+  FACILITY
+  OTHER
+}
+
+enum AssetStatus {
+  OPERATIONAL
+  IN_USE
+  UNDER_MAINTENANCE
+  CALIBRATION_DUE
+  STANDBY
+  RETIRED
+  DISPOSED
+}
+
+enum AssetCondition {
+  NEW
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  DAMAGED
+}
+
+model CompanyAsset {
+  id                      String                  @id @default(uuid())
+  assetTag                String                  @unique // Unique Asset Identifier, e.g. AST-2026-0001
+  name                    String
+  description             String?
+  category                AssetCategory           @default(OTHER)
+  
+  // Make & Model details
+  manufacturer            String?
+  modelNumber             String?
+  serialNumber            String?                 // Hardware serial no from manufacturer
+  
+  // Acquisition details
+  purchaseDate            DateTime?
+  purchaseCost            Float?                  @default(0)
+  vendorId                String?
+  vendor                  Vendor?                 @relation(fields: [vendorId], references: [id])
+  invoiceNumber           String?
+  
+  // Warranty details
+  warrantyExpiry          DateTime?
+  warrantyDetails         String?
+  
+  // Placement & Department
+  location                String?                 // Specific placement e.g. "Assembly Line 2 - Station 3", "QC Bay A"
+  warehouseId             String?
+  warehouse               Warehouse?              @relation(fields: [warehouseId], references: [id])
+  department              String?                 // e.g. "PRODUCTION", "QC_TESTING", "MAINTENANCE", "R_AND_D", "IT"
+  
+  // Current Assignment details
+  assignedToUserId        String?
+  assignedToUser          User?                   @relation("AssetAssignee", fields: [assignedToUserId], references: [id])
+  assignedDate            DateTime?
+  
+  // Status & Lifecycle
+  status                  AssetStatus             @default(OPERATIONAL)
+  condition               AssetCondition          @default(GOOD)
+  isActive                Boolean                 @default(true)
+  retiredDate             DateTime?
+  retirementReason        String?
+  
+  // Maintenance & Calibration tracking
+  lastMaintenanceDate     DateTime?
+  nextMaintenanceDate     DateTime?
+  maintenanceIntervalDays Int?
+  
+  notes                   String?
+  
+  // Historical Tracking
+  maintenanceRecords      AssetMaintenanceRecord[]
+  assignmentRecords       AssetAssignmentHistory[]
+  
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+
+  @@index([assetTag])
+  @@index([category])
+  @@index([status])
+  @@index([assignedToUserId])
+  @@index([warehouseId])
+}
+
+model AssetMaintenanceRecord {
+  id              String        @id @default(uuid())
+  assetId         String
+  asset           CompanyAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  maintenanceType String        // e.g. "PREVENTIVE", "CORRECTIVE", "CALIBRATION", "INSPECTION"
+  title           String
+  description     String?
+  serviceProvider String?       // Internal technician or external agency
+  cost            Float?        @default(0)
+  performedDate   DateTime      @default(now())
+  nextDueDate     DateTime?
+  performedById   String?
+  performedBy     User?         @relation("MaintenancePerformer", fields: [performedById], references: [id])
+  status          String        @default("COMPLETED") // "SCHEDULED", "IN_PROGRESS", "COMPLETED"
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  @@index([assetId])
+  @@index([performedDate])
+}
+
+model AssetAssignmentHistory {
+  id             String        @id @default(uuid())
+  assetId        String
+  asset          CompanyAsset  @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assignedToId   String?
+  assignedTo     User?         @relation("AssignmentUser", fields: [assignedToId], references: [id])
+  assignedByName String?
+  department     String?
+  location       String?
+  assignedDate   DateTime      @default(now())
+  returnedDate   DateTime?
+  notes          String?
+  createdAt      DateTime      @default(now())
+
+  @@index([assetId])
+  @@index([assignedToId])
+}
+
+// ==========================================
+// HR & PAYROLL MODULE (ZAMBIA)
+// ==========================================
+
+enum EmploymentStatus {
+  ACTIVE
+  PROBATION
+  SUSPENDED
+  TERMINATED
+  RESIGNED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  CASUAL
+  INTERN
+}
+
+enum SalaryBasis {
+  MONTHLY
+  DAILY
+  HOURLY
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LATE
+  ON_LEAVE
+  REST_DAY
+  HOLIDAY
+}
+
+enum AttendanceCorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PayrollPeriodStatus {
+  DRAFT
+  CALCULATED
+  REVIEW_REQUIRED
+  APPROVED
+  PAYMENT_PROCESSING
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  MOBILE_MONEY
+  CASH
+  CHEQUE
+}
+
+model WorkShift {
+  id              String       @id @default(uuid())
+  name            String
+  code            String       @unique
+  startTime       String       // e.g. "07:00"
+  endTime         String       // e.g. "15:30"
+  breakMinutes    Int          @default(30)
+  graceMinutes    Int          @default(15)
+  workDays        Int[]        @default([1, 2, 3, 4, 5]) // 1=Mon .. 7=Sun
+  isFactoryShift  Boolean      @default(true)
+  employees       Employee[]
+  attendances     Attendance[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model WorkCalendarHoliday {
+  id                    String    @id @default(uuid())
+  name                  String
+  date                  DateTime
+  year                  Int
+  isStatutory           Boolean   @default(true) // Official Zambia Gazette holiday
+  isMovable             Boolean   @default(false)
+  description           String?
+  isCompanyShutdown     Boolean   @default(false)
+  applicableDepartment  String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([name, date])
+  @@index([year])
+  @@index([date])
+}
+
+model Employee {
+  id                  String             @id @default(uuid())
+  employeeNumber      String             @unique
+  userId              String?            @unique
+  user                User?              @relation("EmployeeUser", fields: [userId], references: [id])
+  firstName           String
+  lastName            String
+  email               String?
+  phone               String?
+  nrcNumber           String?            // Zambia National Registration Card (e.g. 123456/78/1)
+  tpinNumber          String?            // Zambia ZRA TPIN
+  napsaNumber         String?            // Zambia NAPSA Social Security
+  nhimaNumber         String?            // Zambia NHIMA Health Insurance
+  department          String
+  designation         String
+  employmentStatus    EmploymentStatus   @default(ACTIVE)
+  employmentType      EmploymentType     @default(FULL_TIME)
+  hireDate            DateTime           @default(now())
+  terminationDate     DateTime?
+  managerId           String?
+  manager             Employee?          @relation("EmployeeManager", fields: [managerId], references: [id])
+  subordinates        Employee[]         @relation("EmployeeManager")
+  workLocation        String             @default("Lusaka Plant")
+  shiftId             String?
+  shift               WorkShift?         @relation(fields: [shiftId], references: [id])
+  salaryBasis         SalaryBasis        @default(MONTHLY)
+  baseSalary          Float              @default(0) // in ZMW
+  currency            String             @default("ZMW")
+  bankName            String?
+  bankBranch          String?
+  bankAccountNumber   String?
+  mobileMoneyProvider String?            // MTN, Airtel, Zamtel
+  mobileMoneyNumber   String?
+  attendances         Attendance[]
+  attendanceCorrections AttendanceCorrection[]
+  leaveBalances       LeaveBalance[]
+  leaveRequests       LeaveRequest[]
+  payrollRecords      EmployeePayrollRecord[]
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([employeeNumber])
+  @@index([department])
+  @@index([employmentStatus])
+}
+
+model Attendance {
+  id               String               @id @default(uuid())
+  employeeId       String
+  employee         Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  workDate         DateTime
+  shiftId          String?
+  shift            WorkShift?           @relation(fields: [shiftId], references: [id])
+  clockIn          DateTime?
+  clockOut         DateTime?
+  workedHours      Float                @default(0)
+  regularHours     Float                @default(0)
+  overtimeHours    Float                @default(0)
+  lateMinutes      Int                  @default(0)
+  earlyExitMinutes Int                  @default(0)
+  status           AttendanceStatus     @default(PRESENT)
+  isMissingPunch   Boolean              @default(false)
+  source           String               @default("PORTAL") // PORTAL, BIOMETRIC, MANUAL
+  notes            String?
+  corrections      AttendanceCorrection[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  @@unique([employeeId, workDate])
+  @@index([workDate])
+  @@index([status])
+}
+
+model AttendanceCorrection {
+  id                String                     @id @default(uuid())
+  attendanceId      String
+  attendance        Attendance                 @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  employeeId        String
+  employee          Employee                   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  requestedClockIn  DateTime?
+  requestedClockOut DateTime?
+  reason            String
+  status            AttendanceCorrectionStatus @default(PENDING)
+  decidedById       String?
+  decidedBy         User?                      @relation("AttendanceCorrectionDecider", fields: [decidedById], references: [id])
+  decisionNote      String?
+  decidedAt         DateTime?
+  createdAt         DateTime                   @default(now())
+
+  @@index([attendanceId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+model LeavePolicy {
+  id           String         @id @default(uuid())
+  name         String
+  code         String         @unique // ANNUAL, SICK, MATERNITY, PATERNITY, COMPASSIONATE
+  daysPerYear  Float
+  isPaid       Boolean        @default(true)
+  carryOverMax Float          @default(0)
+  requiresDoc  Boolean        @default(false)
+  description  String?
+  balances     LeaveBalance[]
+  requests     LeaveRequest[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model LeaveBalance {
+  id            String      @id @default(uuid())
+  employeeId    String
+  employee      Employee    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  policyId      String
+  policy        LeavePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  year          Int
+  entitledDays  Float
+  usedDays      Float       @default(0)
+  pendingDays   Float       @default(0)
+  remainingDays Float
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([employeeId, policyId, year])
+  @@index([employeeId])
+}
+
+model LeaveRequest {
+  id               String             @id @default(uuid())
+  employeeId       String
+  employee         Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  policyId         String
+  policy           LeavePolicy        @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  startDate        DateTime
+  endDate          DateTime
+  workingDaysCount Float
+  reason           String
+  attachmentName   String?
+  status           LeaveRequestStatus @default(PENDING)
+  approverId       String?
+  approver         User?              @relation("LeaveApprover", fields: [approverId], references: [id])
+  decisionNote     String?
+  decidedAt        DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model StatutoryRuleSet {
+  id                   String                  @id @default(uuid())
+  versionName          String                  @unique // e.g. "ZAM-2026-STATUTORY-V1"
+  country              String                  @default("Zambia")
+  currency             String                  @default("ZMW")
+  effectiveFrom        DateTime
+  effectiveTo          DateTime?
+  isActive             Boolean                 @default(true)
+  notes                String?
+  payeBands            Json                    // Array of { min: number, max: number | null, rate: number }
+  napsaEmployeeRate    Float                   @default(0.05) // 5%
+  napsaEmployerRate    Float                   @default(0.05) // 5%
+  napsaCeiling         Float                   @default(30368) // Monthly wage ceiling
+  nhimaEmployeeRate    Float                   @default(0.01) // 1%
+  nhimaEmployerRate    Float                   @default(0.01) // 1%
+  payrollRecords       EmployeePayrollRecord[]
+  createdById          String?
+  createdBy            User?                   @relation("StatutoryRuleCreator", fields: [createdById], references: [id])
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+
+  @@index([isActive])
+}
+
+model PayrollPeriod {
+  id                 String                  @id @default(uuid())
+  periodCode         String                  @unique // e.g. "2026-03"
+  title              String
+  startDate          DateTime
+  endDate            DateTime
+  payoutDate         DateTime?
+  status             PayrollPeriodStatus     @default(DRAFT)
+  currency           String                  @default("ZMW")
+  totalGross         Float                   @default(0)
+  totalTaxable       Float                   @default(0)
+  totalPaye          Float                   @default(0)
+  totalNapsa         Float                   @default(0)
+  totalNhima         Float                   @default(0)
+  totalNet           Float                   @default(0)
+  totalEmployerCost  Float                   @default(0)
+  preparedById       String?
+  preparedBy         User?                   @relation("PayrollPreparer", fields: [preparedById], references: [id])
+  preparedAt         DateTime?
+  approvedById       String?
+  approvedBy         User?                   @relation("PayrollApprover", fields: [approvedById], references: [id])
+  approvedAt         DateTime?
+  approvalNote       String?
+  paidById           String?
+  paidBy             User?                   @relation("PayrollPayer", fields: [paidById], references: [id])
+  paidAt             DateTime?
+  paymentReference   String?
+  rejectionReason    String?
+  records            EmployeePayrollRecord[]
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model EmployeePayrollRecord {
+  id                   String            @id @default(uuid())
+  periodId             String
+  period               PayrollPeriod     @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  employeeId           String
+  employee             Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  statutoryRuleSetId   String?
+  statutoryRuleSet     StatutoryRuleSet? @relation(fields: [statutoryRuleSetId], references: [id])
+  salaryBasis          SalaryBasis
+  baseSalary           Float
+  workingDays          Float             @default(0)
+  workedDays           Float             @default(0)
+  overtimeHours        Float             @default(0)
+  overtimePay          Float             @default(0)
+  allowances           Float             @default(0)
+  allowancesBreakdown  Json?
+  bonuses              Float             @default(0)
+  absenceDeductions    Float             @default(0)
+  otherDeductions      Float             @default(0)
+  grossPay             Float
+  taxablePay           Float
+  payeTax              Float             // Zambia PAYE
+  napsaEmployee        Float             // Zambia NAPSA (5%)
+  napsaEmployer        Float             // Zambia NAPSA (5%)
+  nhimaEmployee        Float             // Zambia NHIMA (1%)
+  nhimaEmployer        Float             // Zambia NHIMA (1%)
+  totalDeductions      Float
+  netPay               Float
+  paymentMethod        PaymentMethod     @default(BANK_TRANSFER)
+  bankDetailsSnapshot  Json?
+  calculationDetails   Json?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  @@unique([periodId, employeeId])
+  @@index([employeeId])
+  @@index([periodId])
+}
+
+
+
+
+
+
+
+
+
+
