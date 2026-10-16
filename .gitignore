@@ -44,3 +44,5 @@ yarn-debug.log*
 # Public Uploads & Binaries
 backend/public/uploads/reports/*
 !backend/public/uploads/reports/.gitkeep
+backend/public/uploads/payments/*
+!backend/public/uploads/payments/.gitkeep
