@@ -11,12 +11,12 @@ import axios from "axios";
 export function getApiBaseUrl(): string {
   const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
 
-  // If user explicitly configured an external or non-localhost API URL in .env, honor it
-  if (envUrl && !envUrl.includes("localhost") && !envUrl.includes("127.0.0.1")) {
+  // If NEXT_PUBLIC_API_URL is explicitly configured, always honor it
+  if (envUrl) {
     return envUrl.replace(/\/+$/, "");
   }
 
-  // Client-side dynamic host detection
+  // Client-side dynamic host detection for local/staging development
   if (typeof window !== "undefined") {
     const { protocol, hostname } = window.location;
 
@@ -28,13 +28,14 @@ export function getApiBaseUrl(): string {
     }
 
     // B. Local LAN IPv4 sharing (e.g., 192.168.0.7:3000 -> 192.168.0.7:8000)
-    const isIpAddress = /^(\d{1,3}\.){3}\d{1,3}$/.test(hostname);
-    if (isIpAddress && hostname !== "127.0.0.1") {
+    // Only apply for private LAN ranges (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+    const isPrivateLan = /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname);
+    if (isPrivateLan) {
       return `${protocol}//${hostname}:8000`;
     }
   }
 
-  return (envUrl || "http://localhost:8000").replace(/\/+$/, "");
+  return "http://localhost:8000";
 }
 
 /**
@@ -42,11 +43,16 @@ export function getApiBaseUrl(): string {
  */
 export function getWsBaseUrl(): string {
   const envWs = process.env.NEXT_PUBLIC_WS_URL?.trim();
-  if (envWs && !envWs.includes("localhost") && !envWs.includes("127.0.0.1")) {
+  if (envWs) {
     return envWs.replace(/\/+$/, "");
   }
 
   const apiBase = getApiBaseUrl();
+  if (apiBase.startsWith("https://")) {
+    return apiBase.replace(/^https:\/\//, "wss://");
+  } else if (apiBase.startsWith("http://")) {
+    return apiBase.replace(/^http:\/\//, "ws://");
+  }
   return apiBase.replace(/^http/, "ws");
 }
 
@@ -154,7 +160,7 @@ export async function downloadAuthenticatedFile(urlPath: string, filename?: stri
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
 
-  const blob = new Blob([response.data], { type: response.headers["content-type"] || "application/pdf" });
+  const blob = new Blob([response.data], { type: (response.headers["content-type"] as string) || "application/pdf" });
   const downloadUrl = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = downloadUrl;

@@ -831,9 +831,8 @@ export default function PaymentsRegistryPage() {
                   className="max-h-[65vh] w-auto max-w-full object-contain rounded-lg shadow-sm" 
                   onError={(e) => {
                     const target = e.currentTarget;
-                    if (!target.src.includes(":8000")) {
-                      target.src = `http://localhost:8000${previewProofUrl.startsWith('/') ? '' : '/'}${previewProofUrl}`;
-                    }
+                    target.onerror = null;
+                    target.style.opacity = "0.4";
                   }}
                 />
               ) : (

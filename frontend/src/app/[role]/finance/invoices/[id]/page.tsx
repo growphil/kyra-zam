@@ -143,7 +143,7 @@ export default function InvoiceDetailPage() {
             onClick={async () => {
               try {
                 toast.info("Preparing invoice PDF...");
-                await downloadAuthenticatedFile(`/crm/finance/invoices/${invoiceId}/pdf`, `invoice-${invoice?.invoiceNumber || invoiceId}.pdf`);
+                await downloadAuthenticatedFile(`/crm/finance/invoices/${invoiceId}/pdf`, `invoice-${inv?.invoiceNumber || invoiceId}.pdf`);
                 toast.success("Downloaded invoice PDF");
               } catch {
                 toast.error("Failed to download invoice PDF");

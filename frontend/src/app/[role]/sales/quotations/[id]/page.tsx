@@ -1078,7 +1078,7 @@ export default function QuotationDetailPage() {
 
             <div className="space-y-2.5">
               <a
-                href={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/crm/quotations/${quotation.id}/pdf`}
+                href={`${getApiBaseUrl()}/crm/quotations/${quotation.id}/pdf`}
                 target="_blank"
                 rel="noreferrer"
                 className="w-full flex items-center justify-between p-3 rounded-2xl bg-white border border-slate-200 hover:border-blue-300 hover:bg-blue-50/40 text-slate-800 transition-all cursor-pointer group"
