@@ -20,8 +20,11 @@ export function getApprovedOrigins(): Set<string> {
     origins.add(origin);
   }
 
+  // Explicitly approved production origins
+  origins.add("https://kyra-zam.vercel.app");
+
   // Default local development origins
-  if (process.env.NODE_ENV !== "production" || origins.size === 0) {
+  if (process.env.NODE_ENV !== "production" || origins.size <= 1) {
     origins.add("http://localhost:3000");
     origins.add("http://127.0.0.1:3000");
     origins.add("http://localhost:8000");
@@ -43,6 +46,18 @@ export function isOriginAllowed(origin: string | undefined): boolean {
   if (approved.has(cleanOrigin)) {
     return true;
   }
+
+  // Also support secure Vercel deployment origins for kyra-zam
+  try {
+    const parsed = new URL(cleanOrigin);
+    if (
+      parsed.protocol === "https:" &&
+      (parsed.hostname === "kyra-zam.vercel.app" ||
+        (parsed.hostname.endsWith(".vercel.app") && parsed.hostname.startsWith("kyra-zam")))
+    ) {
+      return true;
+    }
+  } catch {}
 
   // In non-production environments, also support local LAN IPs and dev tunnels
   if (process.env.NODE_ENV !== "production") {
@@ -78,6 +93,12 @@ export const corsPlugin = fp(async (fastify: FastifyInstance) => {
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "X-Requested-With",
+      "Accept",
+      "Origin",
+    ],
   });
 });

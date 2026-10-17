@@ -184,15 +184,6 @@ export default function ProductionOperationsPage() {
     }
   }, [isTechnicianRole, roleSlug, router]);
 
-  if (isTechnicianRole) {
-    return (
-      <div className="flex flex-col items-center justify-center p-24 gap-4 text-white">
-        <Loader2 className="w-10 h-10 text-accent animate-spin" />
-        <p className="text-sm text-[#526B91] font-display">Redirecting to PAX Assembly Workspace...</p>
-      </div>
-    );
-  }
-
   // --- QUERY: Operations Dashboard Data (Auto-refreshes every 30s) ---
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["operations-dashboard", selectedDate],
@@ -255,6 +246,15 @@ export default function ProductionOperationsPage() {
       setErrorMessage(err.response?.data?.error || err.message || "Failed to resume Work Order");
     }
   });
+
+  if (isTechnicianRole) {
+    return (
+      <div className="flex flex-col items-center justify-center p-24 gap-4 text-white">
+        <Loader2 className="w-10 h-10 text-accent animate-spin" />
+        <p className="text-sm text-[#526B91] font-display">Redirecting to PAX Assembly Workspace...</p>
+      </div>
+    );
+  }
 
   const handleAction = (action: "START" | "PAUSE" | "RESUME", wo: any) => {
     setErrorMessage("");

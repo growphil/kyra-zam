@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter, useParams, usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, ShieldAlert } from "lucide-react";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 
@@ -12,6 +12,11 @@ export default function RoleLayout({ children }: { children: React.ReactNode }) 
   const params = useParams();
   const pathname = usePathname();
   const currentRoleSlug = params.role as string;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -36,7 +41,7 @@ export default function RoleLayout({ children }: { children: React.ReactNode }) 
     }
   }, [status, session, router, currentRoleSlug]);
 
-  if (status === "loading") {
+  if (!mounted || status === "loading") {
     return (
       <div className="min-h-[50vh] flex flex-col items-center justify-center p-12">
         <Loader2 className="w-10 h-10 text-[#0878F9] animate-spin mb-3" />

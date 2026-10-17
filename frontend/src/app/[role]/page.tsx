@@ -52,53 +52,6 @@ export default function RoleDashboard() {
   const isSeller = role === "seller" || userRoles.includes("SELLER");
   const isHrPayroll = role === "hr-payroll" || (userRoles.includes("HR_PAYROLL") && role === "hr-payroll");
 
-  useEffect(() => {
-    if (isPaxTestEngineer) {
-      router.replace(`/${role}/pax-testing`);
-    } else if (isPackingOperator) {
-      router.replace(`/${role}/packing`);
-    } else if (isSeller) {
-      router.replace(`/${role}/sales`);
-    } else if (isHrPayroll) {
-      router.replace(`/${role}/hr/dashboard`);
-    }
-  }, [isPaxTestEngineer, isPackingOperator, isSeller, isHrPayroll, role, router]);
-
-  if (isPaxTestEngineer) {
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center p-12">
-        <Loader2 className="w-10 h-10 text-[#0878F9] animate-spin mb-3" />
-        <p className="text-xs font-semibold text-[#526B91]">Redirecting to PAX Testing Workspace...</p>
-      </div>
-    );
-  }
-
-  if (isPackingOperator) {
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center p-12">
-        <Loader2 className="w-10 h-10 text-[#0878F9] animate-spin mb-3" />
-        <p className="text-xs font-semibold text-[#526B91]">Redirecting to Packing Station...</p>
-      </div>
-    );
-  }
-
-  if (isSeller) {
-    return (
-      <div className="min-h-[50vh] flex flex-col items-center justify-center p-12">
-        <Loader2 className="w-10 h-10 text-[#0878F9] animate-spin mb-3" />
-        <p className="text-xs font-semibold text-[#526B91]">Redirecting to Sales Dashboard...</p>
-      </div>
-    );
-  }
-
-  if (isQC) {
-    return <QualityDashboardPage />;
-  }
-
-  if (isMarketingManager) {
-    return <MarketingManagerDashboard roleSlug={role} userName={userName} />;
-  }
-
   // Filter and search state for Test Engineer view
   const [prodFilter, setProdFilter] = useState<"ALL" | "IN_PROGRESS" | "COMPLETED">("IN_PROGRESS");
   const [searchQuery, setSearchQuery] = useState("");
@@ -145,6 +98,53 @@ export default function RoleDashboard() {
     enabled: isTestEngineer,
     refetchInterval: 10000
   });
+
+  useEffect(() => {
+    if (isPaxTestEngineer) {
+      router.replace(`/${role}/pax-testing`);
+    } else if (isPackingOperator) {
+      router.replace(`/${role}/packing`);
+    } else if (isSeller) {
+      router.replace(`/${role}/sales`);
+    } else if (isHrPayroll) {
+      router.replace(`/${role}/hr/dashboard`);
+    }
+  }, [isPaxTestEngineer, isPackingOperator, isSeller, isHrPayroll, role, router]);
+
+  if (isPaxTestEngineer) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center p-12">
+        <Loader2 className="w-10 h-10 text-[#0878F9] animate-spin mb-3" />
+        <p className="text-xs font-semibold text-[#526B91]">Redirecting to PAX Testing Workspace...</p>
+      </div>
+    );
+  }
+
+  if (isPackingOperator) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center p-12">
+        <Loader2 className="w-10 h-10 text-[#0878F9] animate-spin mb-3" />
+        <p className="text-xs font-semibold text-[#526B91]">Redirecting to Packing Station...</p>
+      </div>
+    );
+  }
+
+  if (isSeller) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center p-12">
+        <Loader2 className="w-10 h-10 text-[#0878F9] animate-spin mb-3" />
+        <p className="text-xs font-semibold text-[#526B91]">Redirecting to Sales Dashboard...</p>
+      </div>
+    );
+  }
+
+  if (isQC) {
+    return <QualityDashboardPage />;
+  }
+
+  if (isMarketingManager) {
+    return <MarketingManagerDashboard roleSlug={role} userName={userName} />;
+  }
 
   // --- ASSEMBLY TECHNICIAN PRIMARY WORKSPACE ---
   if (isAssemblyTech) {
