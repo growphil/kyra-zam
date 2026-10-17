@@ -49,21 +49,23 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     }
 
     const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
+    if (!token) {
+      // Handshake authentication is mandatory. Wait for active authenticated session.
+      setStatus("disconnected");
+      return;
+    }
+
     const wsBase = getWsBaseUrl();
     const wsUrl = `${wsBase}/ws`;
 
     setStatus(prev => (prev === "disconnected" ? "reconnecting" : "connecting"));
 
     try {
-      const protocols = token ? ["bearer", token] : undefined;
-      const ws = protocols ? new WebSocket(wsUrl, protocols) : new WebSocket(wsUrl);
+      const ws = new WebSocket(wsUrl, ["bearer", token]);
       socketRef.current = ws;
 
       ws.onopen = () => {
-        console.log("⚡ [WebSocket] Connected to KYRA ZAM Realtime Server");
-        if (token) {
-          ws.send(JSON.stringify({ type: "auth", token }));
-        }
+        console.log("⚡ [WebSocket] Connected to KYRA ZAM Realtime Server (Handshake Authenticated)");
         setStatus("connected");
         backoffRef.current = 1000;
 
@@ -271,6 +273,11 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       ws.onclose = (closeEvent) => {
         setStatus("disconnected");
         if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+
+        if (closeEvent.code === 1008) {
+          console.warn("⚡ [WebSocket] Connection rejected: Authentication required (code 1008). Postponing reconnect until credentials refresh.");
+          backoffRef.current = Math.max(backoffRef.current, 5000);
+        }
 
         // Exponential backoff reconnect
         const timeout = Math.min(backoffRef.current, 10000);

@@ -1,9 +1,11 @@
 import Fastify, { FastifyInstance } from "fastify";
 import { corsPlugin } from "../../plugins/cors";
 import { authPlugin } from "../../plugins/auth";
+import { websocketPlugin } from "../../plugins/websocket";
 import { errorHandler } from "../../plugins/errorHandler";
 import { requireRoles } from "../../middleware/rbac";
 import { authRoutes } from "../../routes/auth";
+import { websocketRoutes } from "../../routes/websocket";
 
 export async function buildTestApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
@@ -11,6 +13,8 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   app.setErrorHandler(errorHandler);
   await app.register(corsPlugin);
   await app.register(authPlugin);
+  await app.register(websocketPlugin);
+  await app.register(websocketRoutes);
   await app.register(authRoutes, { prefix: "/auth" });
 
   // Protected route using fastify.authenticate
