@@ -18,7 +18,8 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
     setSidebarWidth,
     setSidebarFontSize,
     setGroupOrder,
-    setItemOrderMap
+    setItemOrderMap,
+    setRecentOpenedItems
   } = useLayoutStore();
 
   // Close mobile sidebar on page navigation
@@ -62,8 +63,15 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
           setItemOrderMap(savedItemOrder);
         }
       } catch {}
+
+      try {
+        const savedRecent = JSON.parse(localStorage.getItem("sidebar-recent-openings") || "[]");
+        if (Array.isArray(savedRecent) && savedRecent.length > 0) {
+          setRecentOpenedItems(savedRecent);
+        }
+      } catch {}
     }
-  }, [setSidebarCollapsed, setSidebarPosition, setSidebarWidth, setSidebarFontSize, setGroupOrder, setItemOrderMap]);
+  }, [setSidebarCollapsed, setSidebarPosition, setSidebarWidth, setSidebarFontSize, setGroupOrder, setItemOrderMap, setRecentOpenedItems]);
 
   if (isLoginPage) {
     return <main className="min-h-screen bg-[#F4F9FF] text-[#0B2148]">{children}</main>;

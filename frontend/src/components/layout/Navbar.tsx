@@ -13,6 +13,12 @@ export default function Navbar() {
   const { data: session } = useSession();
   const router = useRouter();
   const { toggleMobileSidebar, sidebarPosition, toggleSidebarPosition } = useLayoutStore();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const userName = session?.user?.name || "User";
   const userRoles = (session?.user as any)?.roles || [];
   const rolesDisplay = userRoles.map((r: string) => r.replace('_', ' ')).join(', ') || "No Role";
@@ -161,11 +167,15 @@ export default function Navbar() {
 
         <div className="flex items-center gap-2.5 pl-3 border-l border-[#D8E8FA]">
           <div className="text-right hidden sm:block">
-            <p className="text-xs font-semibold text-[#0B2148] truncate max-w-[140px]">{userName}</p>
-            <p className="text-[10px] text-[#64748B] font-bold uppercase truncate max-w-[140px]">{rolesDisplay}</p>
+            <p className="text-xs font-semibold text-[#0B2148] truncate max-w-[140px]">
+              {mounted ? userName : "User"}
+            </p>
+            <p className="text-[10px] text-[#64748B] font-bold uppercase truncate max-w-[140px]">
+              {mounted ? rolesDisplay : "No Role"}
+            </p>
           </div>
           <div className="w-8 h-8 rounded-lg bg-[#EAF5FF] border border-[#D8E8FA] flex items-center justify-center text-[#0878F9] font-bold text-xs">
-            {userName.charAt(0).toUpperCase()}
+            {(mounted ? userName : "User").charAt(0).toUpperCase()}
           </div>
         </div>
 

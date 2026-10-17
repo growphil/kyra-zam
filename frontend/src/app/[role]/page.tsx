@@ -57,13 +57,13 @@ export default function RoleDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // General dashboard stats (for admin/other roles)
-  const { data: dashboardData, isLoading: loadingStats } = useQuery({
+  const { data: dashboardData, isLoading: loadingStats, isError: statsError, refetch: refetchStats } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => (await api.get("/admin/dashboard-stats")).data,
     enabled: !isAssemblyTech && !isTestEngineer && !isMarketingManager && !isQC && !isPaxTestEngineer && !isPackingOperator && !isSeller
   });
 
-  const { data: auditData, isLoading: loadingLogs } = useQuery({
+  const { data: auditData, isLoading: loadingLogs, isError: logsError, refetch: refetchLogs } = useQuery({
     queryKey: ["recent-logs"],
     queryFn: async () => (await api.get("/admin/audit-logs?limit=5")).data,
     enabled: !isAssemblyTech && !isTestEngineer && !isMarketingManager && !isQC && !isPaxTestEngineer && !isPackingOperator && !isSeller
@@ -711,7 +711,19 @@ export default function RoleDashboard() {
             <div>
               <p className="text-[#526B91] text-[11px] font-semibold uppercase tracking-wider">{stat.label}</p>
               <h3 className="text-2xl sm:text-3xl font-bold text-[#0B2148] mt-1.5">
-                {loadingStats ? <Loader2 className="w-5 h-5 animate-spin text-[#0878F9]" /> : stat.value.toLocaleString()}
+                {loadingStats ? (
+                  <Loader2 className="w-5 h-5 animate-spin text-[#0878F9]" />
+                ) : statsError ? (
+                  <button 
+                    onClick={() => refetchStats()} 
+                    className="text-xs text-rose-600 hover:underline font-normal flex items-center gap-1 cursor-pointer"
+                    title="Click to retry metric request"
+                  >
+                    <span>Retry</span>
+                  </button>
+                ) : (
+                  stat.value.toLocaleString()
+                )}
               </h3>
             </div>
             <div className="p-2.5 rounded-lg bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]">
@@ -737,6 +749,17 @@ export default function RoleDashboard() {
             {loadingLogs ? (
               <div className="flex items-center justify-center p-16">
                 <Loader2 className="w-7 h-7 text-[#0878F9] animate-spin" />
+              </div>
+            ) : logsError ? (
+              <div className="flex flex-col items-center justify-center p-12 text-center text-rose-600 space-y-2">
+                <AlertTriangle className="w-8 h-8 text-rose-500 mb-1" />
+                <p className="text-sm font-medium">Failed to retrieve audit trail.</p>
+                <button 
+                  onClick={() => refetchLogs()} 
+                  className="btn-secondary text-xs px-3 py-1 cursor-pointer"
+                >
+                  Retry Request
+                </button>
               </div>
             ) : auditData?.logs?.length > 0 ? (
               auditData.logs.map((log: any) => (

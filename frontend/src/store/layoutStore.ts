@@ -30,6 +30,7 @@ interface LayoutState {
   setItemOrderMap: (map: Record<string, string[]>) => void;
   resetGroupItemsOrder: (groupId: string) => void;
   recordRecentOpenedItem: (name: string) => void;
+  setRecentOpenedItems: (items: string[]) => void;
   resetLayoutSettings: () => void;
 }
 
@@ -42,16 +43,9 @@ export const useLayoutStore = create<LayoutState>((set) => ({
   isDragReorderMode: false,
   groupOrder: [],
   itemOrder: {},
-  recentOpenedItems: typeof window !== "undefined"
-    ? (() => {
-        try {
-          const raw = localStorage.getItem("sidebar-recent-openings");
-          return raw ? JSON.parse(raw) : [];
-        } catch (e) {
-          return [];
-        }
-      })()
-    : [],
+  recentOpenedItems: [],
+
+  setRecentOpenedItems: (items) => set({ recentOpenedItems: items }),
 
   toggleSidebarCollapse: () => set((state) => {
     const nextVal = !state.isSidebarCollapsed;
