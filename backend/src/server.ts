@@ -123,6 +123,7 @@ async function main() {
       let userRoles: any[] = [];
       let authTimeout: NodeJS.Timeout | null = null;
 
+      let hadHandshakeAuth = false;
       // Check for handshake authentication via Authorization header or Sec-WebSocket-Protocol
       if (!request.headers.authorization && request.headers["sec-websocket-protocol"]) {
         const protocols = (request.headers["sec-websocket-protocol"] as string).split(",").map(p => p.trim());
@@ -133,21 +134,42 @@ async function main() {
       }
 
       if (request.headers.authorization) {
+        hadHandshakeAuth = true;
         try {
           await request.jwtVerify();
           const payload = request.user as unknown as { id: string; email?: string; roles: any };
-          if (payload?.id) {
-            const dbUser = await prisma.user.findUnique({
-              where: { id: payload.id },
-              select: { id: true, roles: true, isActive: true }
-            });
-            if (dbUser && dbUser.isActive) {
-              userId = dbUser.id;
-              userRoles = Array.isArray(dbUser.roles) ? dbUser.roles : [dbUser.roles];
-            }
+          if (!payload?.id) {
+            connection.socket.send(JSON.stringify({
+              event: "error",
+              data: { message: "Invalid authentication token" }
+            }));
+            connection.socket.close(1008, "Authentication required");
+            return;
           }
+
+          const dbUser = await prisma.user.findUnique({
+            where: { id: payload.id },
+            select: { id: true, roles: true, isActive: true }
+          });
+
+          if (!dbUser || !dbUser.isActive) {
+            connection.socket.send(JSON.stringify({
+              event: "error",
+              data: { message: "User account not found or inactive" }
+            }));
+            connection.socket.close(1008, "Authentication required");
+            return;
+          }
+
+          userId = dbUser.id;
+          userRoles = Array.isArray(dbUser.roles) ? dbUser.roles : [dbUser.roles];
         } catch {
-          // Handshake token invalid
+          connection.socket.send(JSON.stringify({
+            event: "error",
+            data: { message: "Invalid or expired authentication token" }
+          }));
+          connection.socket.close(1008, "Authentication required");
+          return;
         }
       }
 

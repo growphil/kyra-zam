@@ -55,7 +55,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     setStatus(prev => (prev === "disconnected" ? "reconnecting" : "connecting"));
 
     try {
-      const ws = new WebSocket(wsUrl);
+      const protocols = token ? ["bearer", token] : undefined;
+      const ws = protocols ? new WebSocket(wsUrl, protocols) : new WebSocket(wsUrl);
       socketRef.current = ws;
 
       ws.onopen = () => {
