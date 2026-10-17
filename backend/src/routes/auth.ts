@@ -4,6 +4,15 @@ import crypto from "crypto";
 import { prisma } from "../prisma";
 import { LoginSchema } from "../schemas/zod.schemas";
 
+function getRefreshExpiryDate(): Date {
+  const expiryEnv = process.env.JWT_REFRESH_EXPIRY || "7d";
+  const daysMatch = expiryEnv.match(/^(\d+)d$/);
+  const days = daysMatch ? parseInt(daysMatch[1], 10) : 7;
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + days);
+  return expiresAt;
+}
+
 export async function authRoutes(fastify: FastifyInstance) {
   // POST /auth/login
   fastify.post("/login", async (request, reply) => {
@@ -20,14 +29,17 @@ export async function authRoutes(fastify: FastifyInstance) {
         return reply.status(401).send({ error: "Invalid credentials" });
       }
 
-      // Access Token (long-lived 365 days persistent session until explicit logout)
-      const accessToken = fastify.jwt.sign({ id: user.id, email: user.email, roles: user.roles } as any, { expiresIn: "365d" });
+      // Access Token with configured lifetime (e.g. 60m)
+      const jwtExpiry = process.env.JWT_EXPIRY || "60m";
+      const accessToken = fastify.jwt.sign(
+        { id: user.id, email: user.email, roles: user.roles } as any,
+        { expiresIn: jwtExpiry }
+      );
 
-      // Refresh Token (extra long-lived)
+      // Refresh Token with configured lifetime (e.g. 7d)
       const rawRefreshToken = crypto.randomBytes(40).toString("hex");
       const tokenHash = await bcrypt.hash(rawRefreshToken, 10);
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 90); // 90 days
+      const expiresAt = getRefreshExpiryDate();
 
       await prisma.refreshToken.create({
         data: {
@@ -53,14 +65,22 @@ export async function authRoutes(fastify: FastifyInstance) {
 
   // POST /auth/refresh
   fastify.post("/refresh", async (request, reply) => {
-    const { refreshToken } = request.body as { refreshToken: string };
+    const { refreshToken } = (request.body || {}) as { refreshToken?: string };
     if (!refreshToken) return reply.status(400).send({ error: "Refresh token required" });
 
-    const [userId, rawToken] = refreshToken.split(":");
-    if (!userId || !rawToken) return reply.status(400).send({ error: "Invalid refresh token format" });
+    const separatorIndex = refreshToken.indexOf(":");
+    if (separatorIndex === -1) {
+      return reply.status(400).send({ error: "Invalid refresh token format" });
+    }
 
-    // Look up active tokens for the user
-    const tokens = await prisma.refreshToken.findMany({
+    const userId = refreshToken.substring(0, separatorIndex);
+    const rawToken = refreshToken.substring(separatorIndex + 1);
+    if (!userId || !rawToken) {
+      return reply.status(400).send({ error: "Invalid refresh token format" });
+    }
+
+    // Step 1: Look up active, unexpired tokens for the user
+    const activeTokens = await prisma.refreshToken.findMany({
       where: { 
         userId, 
         revokedAt: null, 
@@ -68,35 +88,107 @@ export async function authRoutes(fastify: FastifyInstance) {
       }
     });
 
-    let validTokenRow = null;
-    for (const t of tokens) {
+    let matchedActiveToken = null;
+    for (const t of activeTokens) {
       if (await bcrypt.compare(rawToken, t.tokenHash)) {
-        validTokenRow = t;
+        matchedActiveToken = t;
         break;
       }
     }
 
-    if (!validTokenRow) {
-      return reply.status(401).send({ error: "Invalid or expired refresh token" });
+    if (matchedActiveToken) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, email: true, roles: true, isActive: true }
+      }) as any;
+
+      if (!user || !user.isActive) {
+        return reply.status(401).send({ error: "User is no longer active" });
+      }
+
+      // Single-use token rotation: Revoke the used refresh token immediately
+      await prisma.refreshToken.update({
+        where: { id: matchedActiveToken.id },
+        data: { revokedAt: new Date() }
+      });
+
+      // Issue new cryptographically random refresh token
+      const newRawToken = crypto.randomBytes(40).toString("hex");
+      const newTokenHash = await bcrypt.hash(newRawToken, 10);
+      const expiresAt = getRefreshExpiryDate();
+
+      await prisma.refreshToken.create({
+        data: {
+          tokenHash: newTokenHash,
+          userId: user.id,
+          expiresAt
+        } as any
+      });
+
+      // Issue new access token with configured expiry
+      const jwtExpiry = process.env.JWT_EXPIRY || "60m";
+      const newAccessToken = fastify.jwt.sign(
+        { id: user.id, email: user.email, roles: user.roles } as any,
+        { expiresIn: jwtExpiry }
+      );
+
+      const newCompositeToken = `${user.id}:${newRawToken}`;
+
+      return {
+        accessToken: newAccessToken,
+        refreshToken: newCompositeToken
+      };
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId } }) as any;
-    if (!user || !user.isActive) {
-      return reply.status(401).send({ error: "User is no longer active" });
+    // Step 2: Replay detection: Check if the rawToken matches any revoked token for this user
+    const revokedTokens = await prisma.refreshToken.findMany({
+      where: {
+        userId,
+        revokedAt: { not: null }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 20
+    });
+
+    let matchedRevokedToken = null;
+    for (const t of revokedTokens) {
+      if (await bcrypt.compare(rawToken, t.tokenHash)) {
+        matchedRevokedToken = t;
+        break;
+      }
     }
 
-    // Issue new access token
-    const newAccessToken = fastify.jwt.sign({ id: user.id, roles: user.roles } as any, { expiresIn: "30d" });
-    return { accessToken: newAccessToken };
+    if (matchedRevokedToken) {
+      // Replay attack / token reuse detected: Revoke all active sessions for this user
+      await prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() }
+      });
+
+      console.warn(`SECURITY ALERT: Refresh token reuse detected for userId=${userId}. All sessions revoked.`);
+      return reply.status(401).send({
+        error: "Refresh token reuse detected. All sessions revoked. Please log in again."
+      });
+    }
+
+    return reply.status(401).send({ error: "Invalid or expired refresh token" });
   });
 
   // POST /auth/logout
   fastify.post("/logout", async (request, reply) => {
-    const { refreshToken } = request.body as { refreshToken: string };
+    const { refreshToken } = (request.body || {}) as { refreshToken?: string };
     if (!refreshToken) return reply.status(400).send({ error: "Refresh token required" });
 
-    const [userId, rawToken] = refreshToken.split(":");
-    if (!userId || !rawToken) return reply.status(400).send({ error: "Invalid refresh token format" });
+    const separatorIndex = refreshToken.indexOf(":");
+    if (separatorIndex === -1) {
+      return reply.status(400).send({ error: "Invalid refresh token format" });
+    }
+
+    const userId = refreshToken.substring(0, separatorIndex);
+    const rawToken = refreshToken.substring(separatorIndex + 1);
+    if (!userId || !rawToken) {
+      return reply.status(400).send({ error: "Invalid refresh token format" });
+    }
 
     const tokens = await prisma.refreshToken.findMany({
       where: { userId, revokedAt: null }

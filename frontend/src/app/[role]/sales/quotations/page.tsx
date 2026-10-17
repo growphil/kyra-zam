@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api, { getApiBaseUrl } from "@/lib/api";
+import api, { getApiBaseUrl, downloadAuthenticatedFile } from "@/lib/api";
 import { 
   FileText, 
   Search, 
@@ -538,11 +538,14 @@ export default function QuotationsPage() {
   };
 
   // --- SHARE ACTION HELPERS ---
-  const handleDownloadPdf = (quoteId: string, quoteNumber: string) => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem("token") : "";
-    const url = `${getApiBaseUrl()}/crm/quotations/${quoteId}/pdf?token=${token}`;
-    window.open(url, "_blank");
-    toast.success(`Downloading PDF for ${quoteNumber}`);
+  const handleDownloadPdf = async (quoteId: string, quoteNumber: string) => {
+    try {
+      toast.info(`Preparing PDF for ${quoteNumber}...`);
+      await downloadAuthenticatedFile(`/crm/quotations/${quoteId}/pdf`, `quotation-${quoteNumber}.pdf`);
+      toast.success(`Downloaded PDF for ${quoteNumber}`);
+    } catch {
+      toast.error(`Failed to download PDF for ${quoteNumber}`);
+    }
   };
 
   const handleCopyLink = (quoteId: string, quoteNumber: string) => {

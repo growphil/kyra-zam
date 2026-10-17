@@ -69,6 +69,106 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
+
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token);
+    }
+  });
+  failedQueue = [];
+};
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest?._retry) {
+      if (typeof window === "undefined") {
+        return Promise.reject(error);
+      }
+
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (!refreshToken) {
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            return api(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const refreshRes = await axios.post(`${getApiBaseUrl()}/auth/refresh`, {
+          refreshToken,
+        });
+
+        const { accessToken, refreshToken: newRefreshToken } = refreshRes.data;
+        if (accessToken) {
+          localStorage.setItem("token", accessToken);
+        }
+        if (newRefreshToken) {
+          localStorage.setItem("refreshToken", newRefreshToken);
+        }
+
+        api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        processQueue(null, accessToken);
+        return api(originalRequest);
+      } catch (refreshErr) {
+        processQueue(refreshErr, null);
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        return Promise.reject(refreshErr);
+      } finally {
+        isRefreshing = false;
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+export async function downloadAuthenticatedFile(urlPath: string, filename?: string) {
+  const fullUrl = urlPath.startsWith("http")
+    ? urlPath
+    : `${getApiBaseUrl().replace(/\/+$/, "")}/${urlPath.replace(/^\/+/, "")}`;
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  const response = await axios.get(fullUrl, {
+    responseType: "blob",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  const blob = new Blob([response.data], { type: response.headers["content-type"] || "application/pdf" });
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  if (filename) {
+    link.download = filename;
+  } else {
+    link.target = "_blank";
+  }
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 10000);
+}
+
 export const getMediaUrl = (url: string | null | undefined): string => {
   if (!url) return "";
   if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:") || url.startsWith("blob:")) {

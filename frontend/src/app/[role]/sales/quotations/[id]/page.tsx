@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api, { getApiBaseUrl } from "@/lib/api";
+import api, { getApiBaseUrl, downloadAuthenticatedFile } from "@/lib/api";
 import { 
   FileText, 
   ArrowLeft, 
@@ -345,10 +345,12 @@ export default function QuotationDetailPage() {
     });
   };
 
-  const downloadPdf = () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem("token") : "";
-    const url = `${getApiBaseUrl()}/crm/quotations/${quotationId}/pdf?token=${token}`;
-    window.open(url, "_blank");
+  const downloadPdf = async () => {
+    try {
+      await downloadAuthenticatedFile(`/crm/quotations/${quotationId}/pdf`, `quotation-${quotation?.quotationNumber || quotationId}.pdf`);
+    } catch {
+      toast.error("Failed to download PDF");
+    }
   };
 
   const isExpired = new Date() > new Date(quotation.validUntil) && !["ACCEPTED", "CANCELLED"].includes(quotation.status);

@@ -19,17 +19,25 @@ declare module "@fastify/jwt" {
 }
 
 export const authPlugin = fp(async (fastify: FastifyInstance) => {
+  const isProduction = process.env.NODE_ENV === "production";
+  const jwtSecret = process.env.JWT_SECRET;
+
+  if (isProduction) {
+    if (!jwtSecret || jwtSecret === "super-secret-key-kyra-zam-2026" || jwtSecret.length < 32) {
+      throw new Error("FATAL: JWT_SECRET environment variable is missing, insecure, or less than 32 characters in production!");
+    }
+  }
+
+  const effectiveSecret = jwtSecret || "super-secret-key-kyra-zam-2026";
+  const jwtExpiry = process.env.JWT_EXPIRY || "60m";
+
   fastify.register(fastifyJwt, {
-    secret: process.env.JWT_SECRET || "super-secret-key-kyra-zam-2026",
-    sign: { expiresIn: "30d" },
+    secret: effectiveSecret,
+    sign: { expiresIn: jwtExpiry },
   });
 
   fastify.decorate("authenticate", async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const queryToken = (request.query as any)?.token;
-      if (queryToken) {
-        request.headers.authorization = `Bearer ${queryToken}`;
-      }
       await request.jwtVerify();
       const payload = request.user as { id: string; email?: string; roles: string[] };
 
@@ -43,16 +51,6 @@ export const authPlugin = fp(async (fastify: FastifyInstance) => {
         },
         select: { id: true, email: true, roles: true, isActive: true }
       });
-
-      if (!user && payload.roles && payload.roles.length > 0) {
-        user = await prisma.user.findFirst({
-          where: {
-            roles: { hasSome: payload.roles as any },
-            isActive: true
-          },
-          select: { id: true, email: true, roles: true, isActive: true }
-        });
-      }
 
       if (!user) {
         return reply.status(401).send({ error: "User not found" });

@@ -48,9 +48,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       socketRef.current = null;
     }
 
-    const token = localStorage.getItem("token") || "";
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") || "" : "";
     const wsBase = getWsBaseUrl();
-    const wsUrl = `${wsBase}/ws?token=${encodeURIComponent(token)}`;
+    const wsUrl = `${wsBase}/ws`;
 
     setStatus(prev => (prev === "disconnected" ? "reconnecting" : "connecting"));
 
@@ -60,6 +60,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
       ws.onopen = () => {
         console.log("⚡ [WebSocket] Connected to KYRA ZAM Realtime Server");
+        if (token) {
+          ws.send(JSON.stringify({ type: "auth", token }));
+        }
         setStatus("connected");
         backoffRef.current = 1000;
 

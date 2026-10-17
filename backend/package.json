@@ -11,7 +11,8 @@
     "prisma:migrate": "prisma migrate dev",
     "seed": "ts-node prisma/seed.ts",
     "clear:db": "ts-node prisma/clear-db-except-users.ts",
-    "worker": "ts-node src/queues/worker.ts"
+    "worker": "ts-node src/queues/worker.ts",
+    "test": "node -r ts-node/register --test src/__tests__/*.test.ts"
   },
   "type": "commonjs",
   "dependencies": {

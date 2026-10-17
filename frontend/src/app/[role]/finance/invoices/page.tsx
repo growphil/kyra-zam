@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api, { getApiBaseUrl } from "@/lib/api";
+import api, { getApiBaseUrl, downloadAuthenticatedFile } from "@/lib/api";
 import { 
   IndianRupee, 
   Search, 
@@ -452,16 +452,22 @@ export default function InvoicesRegistryPage() {
                           <span>View</span>
                         </button>
 
-                        <a 
-                          href={`${getApiBaseUrl()}/crm/finance/invoices/${inv.id}/pdf?token=${typeof window !== 'undefined' ? localStorage.getItem("token") : ""}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 text-[#526B91] hover:text-blue-400 hover:bg-blue-500/10 rounded-lg border border-[#D8E8FA] transition-colors flex items-center gap-1 text-xs font-semibold"
+                        <button
+                          onClick={async () => {
+                            try {
+                              toast.info(`Preparing PDF for invoice ${inv.invoiceNumber}...`);
+                              await downloadAuthenticatedFile(`/crm/finance/invoices/${inv.id}/pdf`, `invoice-${inv.invoiceNumber || inv.id}.pdf`);
+                              toast.success(`Downloaded PDF for invoice ${inv.invoiceNumber}`);
+                            } catch {
+                              toast.error(`Failed to download PDF for invoice ${inv.invoiceNumber}`);
+                            }
+                          }}
+                          className="p-1.5 text-[#526B91] hover:text-blue-400 hover:bg-blue-500/10 rounded-lg border border-[#D8E8FA] transition-colors flex items-center gap-1 text-xs font-semibold cursor-pointer"
                           title="Download Invoice PDF"
                         >
                           <FileDown className="w-3.5 h-3.5 text-blue-400" />
                           <span>PDF</span>
-                        </a>
+                        </button>
                       </div>
                     </td>
                   </tr>

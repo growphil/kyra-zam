@@ -10,10 +10,6 @@ export type UserRole =
 export function requireRoles(...roles: UserRole[]) {
   return async (request: FastifyRequest, reply: FastifyReply) => {
     try {
-      const queryToken = (request.query as any)?.token;
-      if (queryToken && !request.headers.authorization) {
-        request.headers.authorization = `Bearer ${queryToken}`;
-      }
       await request.jwtVerify();
       const userPayload = request.user as unknown as { id: string; email?: string; roles: UserRole[] };
 
@@ -27,17 +23,6 @@ export function requireRoles(...roles: UserRole[]) {
         },
         select: { id: true, email: true, roles: true, isActive: true }
       });
-
-      // Fallback: If database was reseeded and ID changed, resolve by role matching to keep session alive permanently
-      if (!dbUser && userPayload.roles && userPayload.roles.length > 0) {
-        dbUser = await prisma.user.findFirst({
-          where: {
-            roles: { hasSome: userPayload.roles as any },
-            isActive: true
-          },
-          select: { id: true, email: true, roles: true, isActive: true }
-        });
-      }
 
       if (!dbUser) {
         return reply.status(401).send({ error: "Unauthorized", message: "User session expired or user not found. Please log in again." });

@@ -192,6 +192,9 @@ export default function LoginPage() {
         if (session?.accessToken) {
           localStorage.setItem("token", session.accessToken);
         }
+        if (session?.refreshToken) {
+          localStorage.setItem("refreshToken", session.refreshToken);
+        }
         if (session?.user) {
           localStorage.setItem("user", JSON.stringify(session.user));
         }

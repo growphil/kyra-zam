@@ -118,50 +118,147 @@ async function main() {
   // Realtime Live WebSocket Route with Auth & Heartbeat
   app.get("/ws", { websocket: true }, async (connection, request) => {
     try {
-      const queryToken = (request.query as any).token;
-      if (queryToken) {
-        request.headers.authorization = `Bearer ${queryToken}`;
-      }
-
-      let userId = "guest_user";
-      let userRoles: any[] = ["SUPERADMIN", "ADMIN", "INVENTORY_MANAGER", "TEST_ENGINEER", "ASSEMBLY_TECHNICIAN", "SUPERVISOR", "SALES_EXECUTIVE", "ACCOUNTANT", "PURCHASE_MANAGER", "MARKETING_MANAGER"];
-
-      try {
-        await request.jwtVerify();
-        const user = request.user as unknown as { id: string; roles: any }; 
-        if (user) {
-          userId = user.id;
-          userRoles = Array.isArray(user.roles) ? user.roles : (user.roles ? [user.roles] : userRoles);
-        }
-      } catch (authErr) {
-        // Allow connection with default role subscriptions if connecting before auth sync
-      }
-
       const { wsManager } = require("./websocket/manager");
-      wsManager.add(userId, userRoles, connection);
+      let userId: string | null = null;
+      let userRoles: any[] = [];
+      let authTimeout: NodeJS.Timeout | null = null;
 
-      // Send initial handshake acknowledgement
-      connection.socket.send(JSON.stringify({
-        event: "ws:connected",
-        data: { 
-          message: "KYRA ZAM 2.0 Live WebSocket Sync Active", 
-          userId, 
-          serverTime: new Date().toISOString() 
+      // Check for handshake authentication via Authorization header or Sec-WebSocket-Protocol
+      if (!request.headers.authorization && request.headers["sec-websocket-protocol"]) {
+        const protocols = (request.headers["sec-websocket-protocol"] as string).split(",").map(p => p.trim());
+        const bearerIdx = protocols.findIndex(p => p.toLowerCase() === "bearer");
+        if (bearerIdx !== -1 && protocols[bearerIdx + 1]) {
+          request.headers.authorization = `Bearer ${protocols[bearerIdx + 1]}`;
         }
-      }));
+      }
 
-      // Heartbeat ping-pong
-      connection.socket.on("message", (raw: any) => {
+      if (request.headers.authorization) {
+        try {
+          await request.jwtVerify();
+          const payload = request.user as unknown as { id: string; email?: string; roles: any };
+          if (payload?.id) {
+            const dbUser = await prisma.user.findUnique({
+              where: { id: payload.id },
+              select: { id: true, roles: true, isActive: true }
+            });
+            if (dbUser && dbUser.isActive) {
+              userId = dbUser.id;
+              userRoles = Array.isArray(dbUser.roles) ? dbUser.roles : [dbUser.roles];
+            }
+          }
+        } catch {
+          // Handshake token invalid
+        }
+      }
+
+      const completeAuth = (authedId: string, authedRoles: any[]) => {
+        if (authTimeout) {
+          clearTimeout(authTimeout);
+          authTimeout = null;
+        }
+        userId = authedId;
+        userRoles = authedRoles;
+        wsManager.add(userId, userRoles, connection);
+
+        connection.socket.send(JSON.stringify({
+          event: "ws:connected",
+          data: {
+            message: "KYRA ZAM 2.0 Live WebSocket Sync Active",
+            userId,
+            serverTime: new Date().toISOString()
+          }
+        }));
+      };
+
+      if (userId) {
+        // Handshake authentication succeeded
+        completeAuth(userId, userRoles);
+      } else {
+        // Handshake unauthenticated: Require in-band auth message within 5 seconds
+        authTimeout = setTimeout(() => {
+          if (!userId) {
+            try {
+              connection.socket.send(JSON.stringify({
+                event: "error",
+                data: { message: "Authentication required for WebSocket connection" }
+              }));
+              connection.socket.close(1008, "Authentication required");
+            } catch {}
+          }
+        }, 5000);
+      }
+
+      // Handle incoming messages
+      connection.socket.on("message", async (raw: any) => {
         try {
           const parsed = JSON.parse(raw.toString());
+
+          // In-band authentication message
+          if (parsed.type === "auth" || parsed.event === "auth") {
+            const token = parsed.token;
+            if (!token || typeof token !== "string") {
+              connection.socket.send(JSON.stringify({
+                event: "error",
+                data: { message: "Authentication required for WebSocket connection" }
+              }));
+              connection.socket.close(1008, "Authentication required");
+              return;
+            }
+
+            try {
+              const decoded = app.jwt.verify(token) as { id: string; email?: string; roles: any };
+              if (!decoded?.id) {
+                connection.socket.send(JSON.stringify({
+                  event: "error",
+                  data: { message: "Invalid authentication token" }
+                }));
+                connection.socket.close(1008, "Authentication required");
+                return;
+              }
+
+              const dbUser = await prisma.user.findUnique({
+                where: { id: decoded.id },
+                select: { id: true, roles: true, isActive: true }
+              });
+
+              if (!dbUser || !dbUser.isActive) {
+                connection.socket.send(JSON.stringify({
+                  event: "error",
+                  data: { message: "User account not found or inactive" }
+                }));
+                connection.socket.close(1008, "Authentication required");
+                return;
+              }
+
+              completeAuth(dbUser.id, Array.isArray(dbUser.roles) ? dbUser.roles : [dbUser.roles]);
+            } catch (jwtErr: any) {
+              connection.socket.send(JSON.stringify({
+                event: "error",
+                data: { message: "Invalid or expired authentication token" }
+              }));
+              connection.socket.close(1008, "Authentication required");
+            }
+            return;
+          }
+
+          // Heartbeat ping-pong (only active if authenticated)
           if (parsed.type === "ping" || parsed.event === "ping") {
-            connection.socket.send(JSON.stringify({ event: "pong", timestamp: Date.now() }));
+            if (userId) {
+              connection.socket.send(JSON.stringify({ event: "pong", timestamp: Date.now() }));
+            }
+            return;
           }
         } catch (e) {}
       });
 
       connection.socket.on("close", () => {
-        wsManager.remove(userId, connection);
+        if (authTimeout) {
+          clearTimeout(authTimeout);
+          authTimeout = null;
+        }
+        if (userId) {
+          wsManager.remove(userId, connection);
+        }
       });
     } catch (err) {
       connection.socket.close(1011, "Server Error");

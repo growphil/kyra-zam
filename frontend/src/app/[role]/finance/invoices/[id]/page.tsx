@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api, { getApiBaseUrl } from "@/lib/api";
+import api, { getApiBaseUrl, downloadAuthenticatedFile } from "@/lib/api";
 import { 
   IndianRupee, 
   ArrowLeft, 
@@ -139,15 +139,21 @@ export default function InvoiceDetailPage() {
         </button>
 
         <div className="flex items-center gap-3">
-          <a
-            href={`${getApiBaseUrl()}/crm/finance/invoices/${invoiceId}/pdf?token=${typeof window !== 'undefined' ? localStorage.getItem("token") : ""}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2 rounded-xl transition-all shadow-sm shadow-blue-500/20"
+          <button
+            onClick={async () => {
+              try {
+                toast.info("Preparing invoice PDF...");
+                await downloadAuthenticatedFile(`/crm/finance/invoices/${invoiceId}/pdf`, `invoice-${invoice?.invoiceNumber || invoiceId}.pdf`);
+                toast.success("Downloaded invoice PDF");
+              } catch {
+                toast.error("Failed to download invoice PDF");
+              }
+            }}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2 rounded-xl transition-all shadow-sm shadow-blue-500/20 cursor-pointer"
           >
             <FileDown className="w-4 h-4" />
             Download Invoice PDF
-          </a>
+          </button>
 
           <button 
             onClick={handlePrint}
