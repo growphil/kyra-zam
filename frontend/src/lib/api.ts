@@ -92,17 +92,36 @@ const processQueue = (error: unknown, token: string | null = null) => {
   failedQueue = [];
 };
 
+let isRedirecting = false;
+function triggerSessionExpiredRedirect() {
+  if (typeof window === "undefined" || isRedirecting) return;
+  if (window.location.pathname.startsWith("/login")) return;
+  isRedirecting = true;
+  localStorage.removeItem("token");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("user");
+  const currentPath = window.location.pathname + window.location.search;
+  window.location.href = `/login?expired=true&callbackUrl=${encodeURIComponent(currentPath)}`;
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    if (error.response?.status === 401 && !originalRequest?._retry) {
+    if (error.response?.status === 401) {
       if (typeof window === "undefined") {
+        return Promise.reject(error);
+      }
+
+      // If refresh request itself failed with 401, or original request already retried, redirect to login
+      if (originalRequest?.url?.includes("/auth/refresh") || originalRequest?._retry) {
+        triggerSessionExpiredRedirect();
         return Promise.reject(error);
       }
 
       const refreshToken = localStorage.getItem("refreshToken");
       if (!refreshToken) {
+        triggerSessionExpiredRedirect();
         return Promise.reject(error);
       }
 
@@ -139,8 +158,7 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshErr) {
         processQueue(refreshErr, null);
-        localStorage.removeItem("token");
-        localStorage.removeItem("refreshToken");
+        triggerSessionExpiredRedirect();
         return Promise.reject(refreshErr);
       } finally {
         isRefreshing = false;

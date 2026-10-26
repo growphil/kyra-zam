@@ -12,7 +12,10 @@ import {
   ChevronLeft, 
   ChevronRight,
   ArrowUpRight,
-  Trash
+  Trash,
+  Edit2,
+  Receipt,
+  Check
 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -34,6 +37,10 @@ export default function PurchaseOrdersPage() {
   const [vendorFilter, setVendorFilter] = useState("");
   const [page, setPage] = useState(1);
 
+  // Quick Invoice Modal State
+  const [invoiceModalPO, setInvoiceModalPO] = useState<any | null>(null);
+  const [invoiceInputValue, setInvoiceInputValue] = useState("");
+
   // Creation State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedVendorId, setSelectedVendorId] = useState("");
@@ -51,19 +58,29 @@ export default function PurchaseOrdersPage() {
     { materialId: "", description: "", quantityOrdered: 1, unitPrice: 0, discount: 0, taxRate: 18, specification: "" }
   ]);
 
+  const isInventoryManager = roleSlug === "inventory-manager";
+
   // --- DATA FETCHING ---
   const { data: dashboardData } = useQuery({
     queryKey: ["procurement-dashboard"],
-    queryFn: async () => (await api.get("/crm/procurement/dashboard")).data
+    queryFn: async () => (await api.get("/crm/procurement/dashboard")).data,
+    enabled: !isInventoryManager
   });
 
   const { data: listData, isLoading } = useQuery({
-    queryKey: ["procurement-po-list", search, status, vendorFilter, page],
+    queryKey: ["procurement-po-list", search, status, vendorFilter, page, isInventoryManager],
     queryFn: async () => {
-      const res = await api.get("/crm/procurement/purchase-orders", {
-        params: { search, status, vendorId: vendorFilter, page, limit: 10 }
-      });
-      return res.data;
+      if (isInventoryManager) {
+        const res = await api.get("/crm/procurement/receiving/purchase-orders", {
+          params: { search, status, page, limit: 10 }
+        });
+        return { orders: res.data.purchaseOrders, total: res.data.total };
+      } else {
+        const res = await api.get("/crm/procurement/purchase-orders", {
+          params: { search, status, vendorId: vendorFilter, page, limit: 10 }
+        });
+        return res.data;
+      }
     }
   });
 
@@ -123,6 +140,41 @@ export default function PurchaseOrdersPage() {
       toast.error(err.response?.data?.error || "Failed to create PO");
     }
   });
+
+  const updateInvoiceMutation = useMutation({
+    mutationFn: async ({ poId, invoiceNumber }: { poId: string; invoiceNumber: string }) => {
+      const res = await api.patch(`/crm/procurement/receiving/purchase-orders/${poId}/invoice`, { invoiceNumber });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["procurement-po-list"] });
+      queryClient.invalidateQueries({ queryKey: ["procurement-receiving-po-list"] });
+      toast.success("Supplier invoice number recorded successfully");
+      setInvoiceModalPO(null);
+      setInvoiceInputValue("");
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error || "Failed to record invoice number");
+    }
+  });
+
+  const handleOpenInvoiceModal = (po: any) => {
+    setInvoiceModalPO(po);
+    setInvoiceInputValue(po.supplierInvoiceNumber || po.invoiceNumber || "");
+  };
+
+  const handleSaveInvoice = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invoiceInputValue.trim()) {
+      toast.error("Please enter a valid invoice number");
+      return;
+    }
+    if (!invoiceModalPO) return;
+    updateInvoiceMutation.mutate({
+      poId: invoiceModalPO.id,
+      invoiceNumber: invoiceInputValue.trim()
+    });
+  };
 
   const resetForm = () => {
     setSelectedVendorId("");
@@ -205,17 +257,21 @@ export default function PurchaseOrdersPage() {
     <div className="h-[calc(100vh-100px)] flex flex-col space-y-4 max-w-[1700px] mx-auto overflow-hidden pb-4">
       {/* Header */}
       <PageHeader
-        title="Purchase Orders"
-        subtitle={`Active Orders: ${totalCount} Formal POs`}
+        title={isInventoryManager ? "Purchase Orders & Receiving Verification" : "Purchase Orders"}
+        subtitle={isInventoryManager 
+          ? "Authorized purchase orders ready for blind physical receipt and inventory verification." 
+          : `Active Orders: ${totalCount} Formal POs`}
         icon={<FileText className="w-5 h-5 text-[#0878F9]" />}
         actions={
-          <button 
-            onClick={() => setIsCreateOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0878F9] hover:bg-[#0667DB] text-white font-bold text-xs transition-all cursor-pointer shadow-xs"
-          >
-            <Plus className="w-4 h-4" />
-            New Purchase Order
-          </button>
+          !isInventoryManager ? (
+            <button 
+              onClick={() => router.push(`/${roleSlug}/procurement/purchase-orders/create`)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0878F9] hover:bg-[#0667DB] text-white font-bold text-xs transition-all cursor-pointer shadow-xs"
+            >
+              <Plus className="w-4 h-4" />
+              New Purchase Order
+            </button>
+          ) : null
         }
       />
 
@@ -225,7 +281,7 @@ export default function PurchaseOrdersPage() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#526B91]" />
           <input 
             type="text" 
-            placeholder="Search orders (Number)..."
+            placeholder="Search orders (Number, Vendor, Invoice)..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-lg pl-10 pr-3.5 py-2 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-[#0878F9]"
@@ -238,24 +294,26 @@ export default function PurchaseOrdersPage() {
           className="bg-[#F4F9FF] border border-[#D8E8FA] text-[#0B2148] rounded-lg px-3.5 py-2 text-xs focus:outline-none focus:border-[#0878F9]"
         >
           <option value="">All Statuses</option>
-          <option value="DRAFT">Draft</option>
-          <option value="PENDING_APPROVAL">Pending Approval</option>
+          {!isInventoryManager && <option value="DRAFT">Draft</option>}
+          {!isInventoryManager && <option value="PENDING_APPROVAL">Pending Approval</option>}
           <option value="APPROVED">Approved</option>
           <option value="SENT">Sent</option>
-          <option value="PARTIALLY_RECEIVED">Partially Received</option>
+          {!isInventoryManager && <option value="PARTIALLY_RECEIVED">Partially Received</option>}
           <option value="RECEIVED">Received</option>
-          <option value="CLOSED">Closed</option>
-          <option value="CANCELLED">Cancelled</option>
+          {!isInventoryManager && <option value="CLOSED">Closed</option>}
+          {!isInventoryManager && <option value="CANCELLED">Cancelled</option>}
         </select>
 
-        <select 
-          value={vendorFilter}
-          onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
-          className="bg-[#F4F9FF] border border-[#D8E8FA] text-[#0B2148] rounded-lg px-3.5 py-2 text-xs focus:outline-none focus:border-[#0878F9]"
-        >
-          <option value="">All Vendors</option>
-          {vendors?.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
-        </select>
+        {!isInventoryManager && (
+          <select 
+            value={vendorFilter}
+            onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
+            className="bg-[#F4F9FF] border border-[#D8E8FA] text-[#0B2148] rounded-lg px-3.5 py-2 text-xs focus:outline-none focus:border-[#0878F9]"
+          >
+            <option value="">All Vendors</option>
+            {vendors?.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Main Grid */}
@@ -270,10 +328,11 @@ export default function PurchaseOrdersPage() {
               <thead>
                 <tr className="bg-[#F4F9FF] border-b border-[#D8E8FA] text-[11px] uppercase font-bold text-[#526B91] tracking-wider">
                   <th className="px-4 py-3">PO Number</th>
-                  <th className="px-4 py-3">Vendor</th>
+                  <th className="px-4 py-3">Supplier</th>
+                  <th className="px-4 py-3">Supplier Invoice #</th>
                   <th className="px-4 py-3">Order Date</th>
                   <th className="px-4 py-3">Expected Delivery</th>
-                  <th className="px-4 py-3">Grand Total</th>
+                  {!isInventoryManager && <th className="px-4 py-3">Grand Total</th>}
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -282,16 +341,47 @@ export default function PurchaseOrdersPage() {
                 {pos.map((po: any) => (
                   <tr key={po.id} className="hover:bg-[#F4F9FF]/80 transition-colors">
                     <td className="px-4 py-3 font-mono font-bold text-[#0B2148] text-xs">{po.poNumber}</td>
-                    <td className="px-4 py-3 text-xs text-[#0B2148] font-semibold">{po.vendor?.name}</td>
+                    <td className="px-4 py-3 text-xs text-[#0B2148] font-semibold">{po.vendorName || po.vendor?.name}</td>
+                    <td className="px-4 py-3">
+                      {po.supplierInvoiceNumber || po.invoiceNumber ? (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs font-bold text-[#0878F9] bg-[#EAF5FF] px-2.5 py-0.5 rounded border border-[#D8E8FA] inline-flex items-center gap-1">
+                            <Receipt className="w-3 h-3 text-[#0878F9]/70" />
+                            {po.supplierInvoiceNumber || po.invoiceNumber}
+                          </span>
+                          {isInventoryManager && (
+                            <button
+                              onClick={() => handleOpenInvoiceModal(po)}
+                              title="Edit Supplier Invoice #"
+                              className="text-[#526B91] hover:text-[#0878F9] p-0.5 rounded hover:bg-[#EAF5FF] transition-colors cursor-pointer"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ) : isInventoryManager ? (
+                        <button
+                          onClick={() => handleOpenInvoiceModal(po)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0878F9] hover:text-[#0667DB] hover:underline cursor-pointer bg-[#F4F9FF] px-2 py-0.5 rounded border border-dashed border-[#B8D7FA]"
+                        >
+                          <Plus className="w-3 h-3" />
+                          Add Invoice #
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-[#94A3B8] italic">Not Recorded</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-xs text-[#526B91] font-medium">
                       {new Date(po.orderDate).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-xs text-[#526B91] font-medium">
                       {new Date(po.expectedDeliveryDate).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3 font-bold text-[#0B2148] text-xs font-mono">
-                      {po.currency} {parseFloat(po.grandTotal.toString()).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
+                    {!isInventoryManager && (
+                      <td className="px-4 py-3 font-bold text-[#0B2148] text-xs font-mono">
+                        {po.currency} {parseFloat((po.grandTotal || 0).toString()).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center ${
                         po.status === "RECEIVED" || po.status === "CLOSED" || po.status === "APPROVED" ? "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]" :
@@ -304,13 +394,33 @@ export default function PurchaseOrdersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <a 
-                        href={`/${roleSlug}/procurement/purchase-orders/${po.id}`} 
-                        className="inline-flex items-center gap-1 text-xs font-bold text-[#0878F9] hover:underline"
-                      >
-                        Details
-                        <ArrowUpRight className="w-3.5 h-3.5" />
-                      </a>
+                      {isInventoryManager ? (
+                        <a 
+                          href={`/${roleSlug}/procurement/purchase-orders/${po.id}/receive`} 
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-[#0878F9] hover:bg-[#0667DB] text-white rounded-lg text-xs font-bold transition-all shadow-2xs"
+                        >
+                          Verify &amp; Receive
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        </a>
+                      ) : (
+                        <div className="inline-flex items-center gap-2 justify-end">
+                          {["APPROVED", "SENT", "PARTIALLY_RECEIVED"].includes(po.status) && (
+                            <a 
+                              href={`/${roleSlug}/procurement/purchase-orders/${po.id}/receive`} 
+                              className="inline-flex items-center gap-1 text-xs font-bold text-[#166534] bg-[#DCFCE7] border border-[#BBF7D0] px-2 py-0.5 rounded hover:bg-[#BBF7D0] transition-colors"
+                            >
+                              Receive
+                            </a>
+                          )}
+                          <a 
+                            href={`/${roleSlug}/procurement/purchase-orders/${po.id}`} 
+                            className="inline-flex items-center gap-1 text-xs font-bold text-[#0878F9] hover:underline"
+                          >
+                            Details
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -602,6 +712,79 @@ export default function PurchaseOrdersPage() {
                     "Save Draft Purchase Order"
                   )}
                 </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick Invoice Recording Modal */}
+      <AnimatePresence>
+        {invoiceModalPO && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-[#D8E8FA] shadow-xl w-full max-w-md overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[#D8E8FA] bg-[#F4F9FF]">
+                <div className="flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-[#0878F9]" />
+                  <div>
+                    <h3 className="text-sm font-bold text-[#0B2148]">Supplier Invoice Number</h3>
+                    <p className="text-[11px] text-[#526B91]">Order: {invoiceModalPO.poNumber} · {invoiceModalPO.vendorName || invoiceModalPO.vendor?.name}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInvoiceModalPO(null)}
+                  className="text-[#526B91] hover:text-[#0B2148] p-1 rounded-lg hover:bg-[#E8F1FC] transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveInvoice} className="p-5 space-y-4">
+                <div>
+                  <label className="text-xs font-semibold text-[#0B2148] block mb-1">
+                    Invoice / Bill Number *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. INV-2026-0045 / BILL-9821"
+                    value={invoiceInputValue}
+                    onChange={(e) => setInvoiceInputValue(e.target.value)}
+                    autoFocus
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl px-3.5 py-2.5 text-xs font-mono font-bold text-[#0B2148] placeholder-[#94A3B8] focus:outline-none focus:border-[#0878F9]"
+                  />
+                  <p className="text-[11px] text-[#526B91] mt-1.5 leading-relaxed">
+                    Used for physical stock receiving verification, 3-way matching, and supplier invoice reconciliation.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#E8F1FC]">
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceModalPO(null)}
+                    className="px-4 py-2 rounded-xl border border-[#D8E8FA] text-xs font-semibold text-[#526B91] hover:bg-[#F4F9FF] transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updateInvoiceMutation.isPending || !invoiceInputValue.trim()}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#0878F9] hover:bg-[#0667DB] text-white text-xs font-bold transition-all cursor-pointer disabled:opacity-50 shadow-xs"
+                  >
+                    {updateInvoiceMutation.isPending ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Check className="w-3.5 h-3.5" />
+                    )}
+                    Save Invoice Number
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>

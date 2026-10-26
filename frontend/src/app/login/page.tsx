@@ -166,6 +166,15 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("expired") === "true") {
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("user");
+        toast.error("Session expired or database reset. Please select a seed account to log in.");
+      }
+    }
   }, []);
 
   const performLogin = async (loginEmail: string, loginPass: string, roleName?: string) => {

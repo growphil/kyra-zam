@@ -6,6 +6,7 @@ import { errorHandler } from "../../plugins/errorHandler";
 import { requireRoles } from "../../middleware/rbac";
 import { authRoutes } from "../../routes/auth";
 import { websocketRoutes } from "../../routes/websocket";
+import { procurementRoutes } from "../../routes/procurement";
 
 export async function buildTestApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
@@ -16,6 +17,7 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   await app.register(websocketPlugin);
   await app.register(websocketRoutes);
   await app.register(authRoutes, { prefix: "/auth" });
+  await app.register(procurementRoutes, { prefix: "/crm/procurement" });
 
   // Protected route using fastify.authenticate
   app.get(

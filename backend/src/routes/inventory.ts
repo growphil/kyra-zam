@@ -369,19 +369,45 @@ export async function inventoryRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
 
-      // Check if used in BOM first using raw SQL
-      const usage: any[] = await (prisma as any).$queryRawUnsafe(
-        `SELECT id FROM "BOMItem" WHERE "materialId" = $1 LIMIT 1`, 
-        id
-      );
-      
-      if (usage && usage.length > 0) {
-        return reply.status(400).send({ error: "Cannot delete material used in an existing BOM" });
+      const existing = await prisma.material.findUnique({ where: { id } });
+      if (!existing) {
+        return reply.status(404).send({ error: "Material not found" });
       }
 
-      await (prisma as any).$queryRawUnsafe(`DELETE FROM "Material" WHERE id = $1`, id);
+      const linkedProducts = await prisma.product.findMany({
+        where: {
+          OR: [
+            { materialId: id },
+            { partNumber: existing.sku },
+            ...(existing.materialCode ? [{ partNumber: existing.materialCode }] : []),
+            { uin: { endsWith: `-${existing.sku}` } }
+          ]
+        }
+      });
+      const productIds = linkedProducts.map(p => p.id);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.purchaseOrderItem.deleteMany({
+          where: {
+            OR: [
+              { materialId: id },
+              ...(productIds.length > 0 ? [{ productId: { in: productIds } }] : [])
+            ]
+          }
+        });
+        await tx.materialLocationBalance.deleteMany({ where: { materialId: id } });
+        await tx.inventoryReservation.deleteMany({ where: { materialId: id } });
+        await tx.bOMItem.deleteMany({ where: { materialId: id } });
+        await tx.stockMovement.deleteMany({ where: { materialId: id } });
+        if (productIds.length > 0) {
+          await tx.product.deleteMany({ where: { id: { in: productIds } } });
+        }
+        await tx.product.deleteMany({ where: { materialId: id } });
+        await tx.material.delete({ where: { id } });
+      });
+
       wsManager.broadcastInventory("inventory:update", { materialId: id, action: "deleted" });
-      return { success: true };
+      return { success: true, message: `Material ${existing.sku} permanently deleted.` };
     }
   );
 

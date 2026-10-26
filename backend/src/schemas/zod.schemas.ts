@@ -374,19 +374,76 @@ export const PurchaseRequestCreateSchema = z.object({
   items: z.array(PurchaseRequestItemSchema).min(1),
 });
 
+export const BrandCreateSchema = z.object({
+  name: z.string().min(1, "Brand name is required").max(100),
+  code: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  country: z.string().optional().nullable(),
+  website: z.string().optional().nullable(),
+  isActive: z.boolean().optional().default(true),
+});
+
+export const ProductCreateSchema = z.object({
+  name: z.string().min(1, "Product name is required"),
+  partNumber: z.string().optional(), // Auto-generated as CAT-SECNO if omitted
+  manufacturerPartNumber: z.string().optional().nullable(),
+  brand: z.string().min(1, "Brand is required"),
+  brandId: z.string().uuid().optional().nullable(),
+  vendorId: z.string().uuid().optional().nullable(),
+  category: z.string().min(1, "Category is required"),
+  materialId: z.string().uuid().optional().nullable(),
+  technicalSpecs: z.string().optional().nullable(),
+  unit: z.string().default("PCS"),
+  description: z.string().optional().nullable(),
+  imageUrl: z.string().optional().nullable(),
+  isActive: z.boolean().default(true),
+});
+
+export const ProductUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  partNumber: z.string().min(1).optional(),
+  manufacturerPartNumber: z.string().optional().nullable(),
+  brand: z.string().min(1).optional(),
+  brandId: z.string().uuid().optional().nullable(),
+  category: z.string().min(1).optional(),
+  materialId: z.string().uuid().optional().nullable(),
+  technicalSpecs: z.string().optional().nullable(),
+  unit: z.string().optional(),
+  description: z.string().optional().nullable(),
+  imageUrl: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+});
+
 export const PurchaseOrderItemSchema = z.object({
-  materialId: z.string().uuid(),
-  description: z.string().min(1),
-  quantityOrdered: z.number().int().positive(),
-  unitPrice: z.number().nonnegative(),
+  productId: z.string().uuid().optional().nullable(),
+  materialId: z.string().uuid().optional().nullable(),
+  brand: z.string().optional().nullable(),
+  partNumber: z.string().optional().nullable(),
+  productUin: z.string().optional().nullable(),
+  imageUrl: z.string().optional().nullable(),
+  batchNumber: z.string().optional().nullable(),
+  description: z.string().min(1, "Description is required"),
+  quantityOrdered: z.number().int().positive("Quantity ordered must be greater than 0"),
+  unitPrice: z.number().nonnegative("Unit price must be non-negative"),
   discount: z.number().nonnegative().default(0),
   taxRate: z.number().nonnegative().default(0),
   specification: z.string().optional().nullable(),
+  expectedDeliveryDate: z.string().optional().nullable(),
+});
+
+export const PurchaseOrderAttachmentSchema = z.object({
+  fileName: z.string().min(1),
+  fileUrl: z.string().min(1),
+  fileSize: z.number().optional().nullable(),
+  fileType: z.string().optional().nullable(),
 });
 
 export const PurchaseOrderCreateSchema = z.object({
   vendorId: z.string().uuid(),
   purchaseRequestId: z.string().uuid().optional().nullable(),
+  quotationReference: z.string().optional().nullable(),
+  projectRef: z.string().optional().nullable(),
+  paxTypeId: z.string().uuid().optional().nullable(),
   expectedDeliveryDate: z.string().min(1),
   currency: z.string().default("INR"),
   additionalCharges: z.number().nonnegative().default(0),
@@ -395,11 +452,38 @@ export const PurchaseOrderCreateSchema = z.object({
   billingAddress: z.string().min(1),
   deliveryAddress: z.string().min(1),
   notes: z.string().optional().nullable(),
-  items: z.array(PurchaseOrderItemSchema).min(1),
+  items: z.array(PurchaseOrderItemSchema).min(1, "At least one item is required in the PO"),
+  attachments: z.array(PurchaseOrderAttachmentSchema).optional().default([]),
+  isDraft: z.boolean().optional().default(false),
+  status: z.enum(["DRAFT", "PENDING_APPROVAL", "APPROVED", "SENT"]).optional(),
+  idempotencyKey: z.string().optional().nullable(),
+  supplierInvoiceNumber: z.string().optional().nullable(),
+  issueToVendor: z.boolean().optional().default(false),
+});
+
+export const SupplierInvoiceItemSchema = z.object({
+  productId: z.string().uuid().optional().nullable(),
+  materialId: z.string().uuid().optional().nullable(),
+  description: z.string().min(1),
+  quantityBilled: z.number().int().positive(),
+  unitPrice: z.number().nonnegative(),
+  taxRate: z.number().nonnegative().default(0),
+});
+
+export const SupplierInvoiceCreateSchema = z.object({
+  invoiceNumber: z.string().min(1, "Invoice number is required"),
+  purchaseOrderId: z.string().uuid(),
+  vendorId: z.string().uuid(),
+  invoiceDate: z.string().min(1),
+  dueDate: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  attachmentUrl: z.string().optional().nullable(),
+  items: z.array(SupplierInvoiceItemSchema).min(1),
 });
 
 export const GoodsReceiptItemSchema = z.object({
-  materialId: z.string().uuid(),
+  productId: z.string().uuid().optional().nullable(),
+  materialId: z.string().uuid().optional().nullable(),
   quantityOrdered: z.number().int().nonnegative(),
   quantityReceived: z.number().int().nonnegative(),
   batchNumber: z.string().optional().nullable(),
@@ -413,6 +497,34 @@ export const GoodsReceiptCreateSchema = z.object({
   warehouseId: z.string().uuid().optional().nullable(),
   notes: z.string().optional().nullable(),
   items: z.array(GoodsReceiptItemSchema).min(1),
+});
+
+export const BlindReceivingItemSchema = z.object({
+  poItemId: z.string().uuid("Valid PO line item ID required"),
+  passedQty: z.number().int().nonnegative("Accepted quantity cannot be negative").optional(),
+  passedQuantity: z.number().int().nonnegative().optional(),
+  defectiveQty: z.number().int().nonnegative("Defective quantity cannot be negative").optional(),
+  defectiveQuantity: z.number().int().nonnegative().optional(),
+  batchNumber: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  shortageNotes: z.string().optional().nullable(),
+  defectNotes: z.string().optional().nullable(),
+}).transform(val => ({
+  poItemId: val.poItemId,
+  passedQty: val.passedQuantity !== undefined ? val.passedQuantity : (val.passedQty !== undefined ? val.passedQty : 0),
+  defectiveQty: val.defectiveQuantity !== undefined ? val.defectiveQuantity : (val.defectiveQty !== undefined ? val.defectiveQty : 0),
+  batchNumber: val.batchNumber,
+  notes: val.notes,
+  shortageNotes: val.shortageNotes,
+  defectNotes: val.defectNotes,
+}));
+
+export const BlindReceivingSubmitSchema = z.object({
+  warehouseId: z.string().uuid().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  isDraft: z.boolean().optional().default(false),
+  supplierInvoiceNumber: z.string().optional().nullable(),
+  items: z.array(BlindReceivingItemSchema).min(1, "At least one item line must be received"),
 });
 
 export const WarehouseCreateSchema = z.object({

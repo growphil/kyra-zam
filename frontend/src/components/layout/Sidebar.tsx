@@ -122,6 +122,7 @@ const navItems = [
   { name: "Purchase Requests", href: "/procurement/purchase-requests", icon: ClipboardList, roles: ["PURCHASE_MANAGER", "INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Purchase Orders", href: "/procurement/purchase-orders", icon: FileText, roles: ["PURCHASE_MANAGER", "INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Goods Receipts", href: "/procurement/goods-receipts", icon: Archive, roles: ["PURCHASE_MANAGER", "INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
+  { name: "Supplier Invoices", href: "/procurement/purchase-invoices", icon: FileText, roles: ["PURCHASE_MANAGER", "INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Warehouse Locations", href: "/inventory/locations", icon: MapPin, roles: ["INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Stock Movements", href: "/inventory/movements", icon: RefreshCw, roles: ["INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Cell Inward", href: "/inward", icon: PlusSquare, roles: ["INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },

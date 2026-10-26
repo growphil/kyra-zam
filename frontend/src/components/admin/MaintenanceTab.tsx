@@ -14,6 +14,7 @@ import {
   Archive,
   History,
   ShoppingCart,
+  FileText,
   Wrench,
   Zap,
   X
@@ -61,7 +62,21 @@ export default function MaintenanceTab() {
       label: "Wipe All Data (Keep Only Seed Users)", 
       icon: Database,
       isMaster: true,
-      sub: "Complete database wipe. Permanently purges all transactional records, leads, customers, quotations, sales, inventory, packs, and logs. Preserves ONLY the 12 clean seed users." 
+      sub: "Complete database wipe. Permanently purges all transactional records, invoices, quotations, purchase orders (PO), purchase requests (PR), leads, customers, sales, inventory, packs, and logs. Preserves ONLY the 12 clean seed users." 
+    },
+    { 
+      id: "clearSales", 
+      label: "Clear Sales, Quotes & Invoices Ledger", 
+      icon: ShoppingCart,
+      isMaster: false,
+      sub: "Deletes all customer invoices, quotations, revisions, approvals, sales orders, leads, customer records, and payment history." 
+    },
+    { 
+      id: "clearProcurement", 
+      label: "Purge Procurement, PO & PR Ledger", 
+      icon: FileText,
+      isMaster: false,
+      sub: "Deletes all Purchase Orders (PO), Purchase Requests (PR), approvals, attachments, goods receipts (GRN), and supplier invoices." 
     },
     { 
       id: "clearPax", 
@@ -69,13 +84,6 @@ export default function MaintenanceTab() {
       icon: Database,
       isMaster: false,
       sub: "Deletes all assembled battery pack records, pack cells, and returns associated serialized cells to active stock." 
-    },
-    { 
-      id: "clearSales", 
-      label: "Clear Sales & Quotations Ledger", 
-      icon: ShoppingCart,
-      isMaster: false,
-      sub: "Deletes all sales orders, customer quotations, invoices, payment history, and commercial records." 
     },
     { 
       id: "clearAuditLogs", 

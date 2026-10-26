@@ -59,6 +59,36 @@ describe("Batch B — Authentication Hardening (CORS, Query Tokens, Expiry, Rota
       assert.equal(res.headers["access-control-allow-credentials"], "true");
     });
 
+    test("1b. Production origin (https://kyra-zam.vercel.app) receives CORS allow headers with credentials", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: "/test/protected-authenticate",
+        headers: {
+          origin: "https://kyra-zam.vercel.app"
+        }
+      });
+
+      assert.equal(res.headers["access-control-allow-origin"], "https://kyra-zam.vercel.app");
+      assert.equal(res.headers["access-control-allow-credentials"], "true");
+    });
+
+    test("1c. Preflight OPTIONS for production origin (https://kyra-zam.vercel.app) receives 204 with credentials and methods", async () => {
+      const res = await app.inject({
+        method: "OPTIONS",
+        url: "/admin/dashboard-stats",
+        headers: {
+          origin: "https://kyra-zam.vercel.app",
+          "access-control-request-method": "GET",
+          "access-control-request-headers": "authorization, content-type"
+        }
+      });
+
+      assert.equal(res.statusCode, 204);
+      assert.equal(res.headers["access-control-allow-origin"], "https://kyra-zam.vercel.app");
+      assert.equal(res.headers["access-control-allow-credentials"], "true");
+      assert.ok(res.headers["access-control-allow-methods"]);
+    });
+
     test("2. Untrusted origin (https://evil-attacker.com) is NOT reflected in Access-Control-Allow-Origin", async () => {
       const res = await app.inject({
         method: "GET",

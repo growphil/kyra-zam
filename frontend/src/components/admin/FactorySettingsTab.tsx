@@ -230,11 +230,13 @@ export default function FactorySettingsTab() {
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{
     type: "model" | "bom" | "material" | "cell" | "category" | "financialReset" | "defaultsReset";
     id?: string;
+    title?: string;
     recordType?: string;
     recordIdentity?: string;
     description?: string;
     warningText?: string;
     hasDependencies?: boolean;
+    confirmButtonText?: string;
     onConfirm: () => Promise<void> | void;
   } | null>(null);
 
@@ -641,7 +643,12 @@ export default function FactorySettingsTab() {
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["admin-factory-materials"] });
       queryClient.invalidateQueries({ queryKey: ["admin-factory-overview"] });
-      toast.success(res?.data?.message || "Material deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["procurement-products-catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["procurement-products"] });
+      queryClient.invalidateQueries({ queryKey: ["procurement-raw-materials"] });
+      queryClient.invalidateQueries({ queryKey: ["materials"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-materials"] });
+      toast.success(res?.data?.message || "Material and catalog products permanently deleted");
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.error || err?.response?.data?.message || "Failed to delete material");
@@ -654,8 +661,11 @@ export default function FactorySettingsTab() {
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["admin-factory-cells"] });
       queryClient.invalidateQueries({ queryKey: ["admin-factory-materials"] });
+      queryClient.invalidateQueries({ queryKey: ["procurement-products-catalog"] });
+      queryClient.invalidateQueries({ queryKey: ["procurement-products"] });
       queryClient.invalidateQueries({ queryKey: ["inward-materials"] });
       queryClient.invalidateQueries({ queryKey: ["materials"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-materials"] });
       queryClient.invalidateQueries({ queryKey: ["admin-factory-overview"] });
       toast.success(res?.data?.message || "Cell Part Number deleted successfully");
     },
@@ -2153,17 +2163,20 @@ export default function FactorySettingsTab() {
                                 setDeleteConfirmTarget({
                                   type: "material",
                                   id: mat.id,
-                                  recordType: "Material SKU / Part Number",
+                                  title: "Permanently Delete Material SKU?",
+                                  recordType: "Material SKU & Product Catalog",
                                   recordIdentity: `${mat.name} (${mat.sku})`,
                                   hasDependencies: true,
-                                  warningText: "Deleting this material mapping will affect any linked BOM templates, quotation line items, and stock movement logs.",
+                                  description: `Are you sure you want to permanently delete material SKU "${mat.sku}"? This will permanently purge the material master and any synchronized product catalog identities (UINs) from Purchase Orders, Procurement, and Inventory.`,
+                                  warningText: "Permanent Deletion • Irreversible: Deleting this SKU permanently purges the material and its synchronized catalog products from the database. It will NO LONGER appear in Purchase Orders (/superadmin/procurement/purchase-orders/create). Any active inventory balances or drafts linked to this SKU will be permanently removed.",
+                                  confirmButtonText: "Permanently Delete SKU",
                                   onConfirm: async () => {
                                     await deleteMaterialMutation.mutateAsync(mat.id);
                                   }
                                 });
                               }}
                               className="p-1.5 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                              title="Delete Material"
+                              title="Permanently Delete Material SKU"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -2324,17 +2337,20 @@ export default function FactorySettingsTab() {
                                 setDeleteConfirmTarget({
                                   type: "cell",
                                   id: cell.id,
+                                  title: "Permanently Delete Cell SKU?",
                                   recordType: "Cell Part Number / Chemistry",
                                   recordIdentity: `${cell.cellName} (${cell.cellSku})`,
                                   hasDependencies: true,
-                                  warningText: "Deleting this master cell SKU will affect cell inward lots, grading criteria, and chemistry lookup.",
+                                  description: `Are you sure you want to permanently delete cell SKU "${cell.cellSku}"? This will permanently purge the cell master and any linked materials or catalog entries.`,
+                                  warningText: "Permanent Deletion • Irreversible: Deleting this master cell SKU permanently purges the record and removes it from cell inward lots, grading criteria, and purchase order catalogs.",
+                                  confirmButtonText: "Permanently Delete Cell SKU",
                                   onConfirm: async () => {
                                     await deleteCellMutation.mutateAsync(cell.id);
                                   }
                                 });
                               }}
                               className="p-1.5 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-                              title="Delete Cell SKU"
+                              title="Permanently Delete Cell SKU"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -5047,19 +5063,22 @@ export default function FactorySettingsTab() {
       <ConfirmDeleteDialog
         isOpen={Boolean(deleteConfirmTarget)}
         title={
-          deleteConfirmTarget?.type === "financialReset" || deleteConfirmTarget?.type === "defaultsReset"
+          deleteConfirmTarget?.title ||
+          (deleteConfirmTarget?.type === "financialReset" || deleteConfirmTarget?.type === "defaultsReset"
             ? "Reset System Settings?"
-            : `Delete ${deleteConfirmTarget?.recordType || "Record"}?`
+            : `Delete ${deleteConfirmTarget?.recordType || "Record"}?`)
         }
         recordType={deleteConfirmTarget?.recordType || "Configuration"}
         recordIdentity={deleteConfirmTarget?.recordIdentity || ""}
         description={deleteConfirmTarget?.description || "This action cannot be undone."}
         warningText={deleteConfirmTarget?.warningText}
         hasDependencies={deleteConfirmTarget?.hasDependencies}
+        isIrreversible={true}
         confirmButtonText={
-          deleteConfirmTarget?.type === "financialReset" || deleteConfirmTarget?.type === "defaultsReset"
+          deleteConfirmTarget?.confirmButtonText ||
+          (deleteConfirmTarget?.type === "financialReset" || deleteConfirmTarget?.type === "defaultsReset"
             ? "Yes, Reset to Defaults"
-            : "Yes, Delete Record"
+            : "Yes, Delete Record")
         }
         isPending={
           deletePaxTypeMutation.isPending ||

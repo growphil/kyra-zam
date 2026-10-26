@@ -10,14 +10,25 @@ function SessionTokenSync() {
 
   useEffect(() => {
     if (typeof window !== "undefined" && session) {
+      if (window.location.pathname.startsWith("/login")) {
+        return;
+      }
+
       const accessToken = (session as any)?.accessToken;
       const refreshToken = (session as any)?.refreshToken;
       const user = session?.user;
 
-      if (accessToken && localStorage.getItem("token") !== accessToken) {
+      // Do not resurrect stale tokens if local tokens were explicitly cleared by a 401 handler
+      const currentToken = localStorage.getItem("token");
+      const currentRefresh = localStorage.getItem("refreshToken");
+      if (!currentToken && !currentRefresh) {
+        return;
+      }
+
+      if (accessToken && currentToken !== accessToken) {
         localStorage.setItem("token", accessToken);
       }
-      if (refreshToken && localStorage.getItem("refreshToken") !== refreshToken) {
+      if (refreshToken && currentRefresh !== refreshToken) {
         localStorage.setItem("refreshToken", refreshToken);
       }
       if (user) {
@@ -34,7 +45,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     defaultOptions: {
       queries: {
         staleTime: 60 * 1000,
-        retry: 1,
+        retry: (failureCount, error: any) => {
+          if (error?.response?.status === 401 || error?.response?.status === 403) {
+            return false;
+          }
+          return failureCount < 1;
+        },
       },
     },
   }));

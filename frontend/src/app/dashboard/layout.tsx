@@ -1,1 +1,7 @@
-﻿export default function Placeholder() { return <div>Placeholder for layout.tsx</div>; }
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return <>{children}</>;
+}
