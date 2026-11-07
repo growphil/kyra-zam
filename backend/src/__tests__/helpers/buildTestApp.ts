@@ -7,6 +7,7 @@ import { requireRoles } from "../../middleware/rbac";
 import { authRoutes } from "../../routes/auth";
 import { websocketRoutes } from "../../routes/websocket";
 import { procurementRoutes } from "../../routes/procurement";
+import { invoiceOrderRoutes } from "../../routes/invoiceOrders";
 
 export async function buildTestApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
@@ -18,6 +19,7 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   await app.register(websocketRoutes);
   await app.register(authRoutes, { prefix: "/auth" });
   await app.register(procurementRoutes, { prefix: "/crm/procurement" });
+  await app.register(invoiceOrderRoutes, { prefix: "/crm/procurement/invoice-orders" });
 
   // Protected route using fastify.authenticate
   app.get(

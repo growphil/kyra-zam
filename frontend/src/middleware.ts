@@ -67,6 +67,11 @@ export default auth((req) => {
 
   // Role-based protection
   if (isLoggedIn && roles.length > 0) {
+    // ULTRA_ADMIN has universal unrestricted access across all modules and routes
+    if (roles.includes("ULTRA_ADMIN")) {
+      return NextResponse.next();
+    }
+
     if (nextUrl.pathname === "/pax-test-engineer" || nextUrl.pathname === "/pax-test-engineer/") {
       return NextResponse.redirect(new URL("/pax-test-engineer/pax-testing", nextUrl));
     }

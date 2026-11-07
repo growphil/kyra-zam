@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import api from "@/lib/api";
 import { 
   Users, 
@@ -34,6 +35,7 @@ const ROLE_CATEGORIES = [
     name: "Executive & Oversight",
     icon: ShieldCheck,
     roles: [
+      { id: "ULTRA_ADMIN", label: "Ultra Admin", desc: "Universal root access, module control & Superadmin deletion" },
       { id: "SUPERADMIN", label: "Super Admin", desc: "Unrestricted master system access" },
       { id: "ADMIN", label: "Administrator", desc: "Production parameters & system config" },
       { id: "SUPERVISOR", label: "Supervisor", desc: "QC escalations & batch approvals" },
@@ -77,8 +79,14 @@ const ROLE_CATEGORIES = [
 
 export default function UserManagementTab() {
   const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const currentUserRoles: string[] = (session?.user as any)?.roles || [];
+  const currentUserId: string = (session?.user as any)?.id || "";
+  const isCurrentUserUltraAdmin = currentUserRoles.includes("ULTRA_ADMIN");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [userToDelete, setUserToDelete] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   // Modal form local states
@@ -90,6 +98,19 @@ export default function UserManagementTab() {
   const { data: users, isLoading } = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => (await api.get("/admin/users")).data
+  });
+
+  // --- DELETE USER MUTATION ---
+  const deleteUserMutation = useMutation({
+    mutationFn: (userId: string) => api.delete(`/admin/users/${userId}`),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast.success(res?.data?.message || "User successfully deleted");
+      setUserToDelete(null);
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || err?.response?.data?.error || "Failed to delete user");
+    }
   });
 
   // --- CREATE / UPDATE USER MUTATION ---
@@ -309,14 +330,24 @@ export default function UserManagementTab() {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex flex-wrap gap-1.5 max-w-md">
-                          {user.roles?.map((role: string) => (
-                            <span 
-                              key={role} 
-                              className="px-2 py-0.5 bg-[#EAF5FF] border border-[#BFDBFE] rounded text-[11px] font-bold uppercase text-[#0878F9] font-mono"
-                            >
-                              {role.replace("_", " ")}
-                            </span>
-                          ))}
+                          {user.roles?.map((role: string) => {
+                            const isUltra = role === "ULTRA_ADMIN";
+                            const isSuper = role === "SUPERADMIN";
+                            return (
+                              <span 
+                                key={role} 
+                                className={`px-2 py-0.5 rounded text-[11px] font-bold uppercase font-mono border ${
+                                  isUltra 
+                                    ? "bg-[#FAF5FF] border-[#E9D5FF] text-[#7E22CE]" 
+                                    : isSuper 
+                                    ? "bg-[#FDF4FF] border-[#F5D0FE] text-[#A21CAF]" 
+                                    : "bg-[#EAF5FF] border-[#BFDBFE] text-[#0878F9]"
+                                }`}
+                              >
+                                {role.replace("_", " ")}
+                              </span>
+                            );
+                          })}
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -354,6 +385,26 @@ export default function UserManagementTab() {
                             }`}
                           >
                             {user.isActive === false ? "Activate" : "Deactivate"}
+                          </button>
+
+                          {/* Delete Action: Ultra Admin can delete Super Admin and any user */}
+                          <button
+                            type="button"
+                            onClick={() => setUserToDelete(user)}
+                            disabled={
+                              user.id === currentUserId || 
+                              (!isCurrentUserUltraAdmin && (user.roles?.includes("SUPERADMIN") || user.roles?.includes("ULTRA_ADMIN")))
+                            }
+                            title={
+                              user.id === currentUserId
+                                ? "Cannot delete your own active session"
+                                : !isCurrentUserUltraAdmin && user.roles?.includes("SUPERADMIN")
+                                ? "Only Ultra Admin has authorization to delete Super Admin"
+                                : "Permanently delete user record"
+                            }
+                            className="p-2 hover:bg-[#FEE2E2] rounded-lg text-[#991B1B] hover:text-[#DC2626] disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
@@ -556,6 +607,83 @@ export default function UserManagementTab() {
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {userToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setUserToDelete(null)}
+              className="absolute inset-0 bg-[#061B3A]/40 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 20 }}
+              className="relative w-full max-w-md bg-white border border-[#FECACA] rounded-2xl shadow-2xl p-6 z-10 space-y-4"
+            >
+              <div className="flex items-center gap-3 text-[#991B1B]">
+                <div className="w-10 h-10 rounded-xl bg-[#FEE2E2] flex items-center justify-center">
+                  <Trash2 className="w-5 h-5 text-[#DC2626]" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#0B2148]">Confirm Account Deletion</h3>
+                  <p className="text-xs text-[#526B91]">Permanent administrative action</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-[#FFF5F5] border border-[#FECACA] rounded-xl text-xs space-y-2">
+                <p className="font-semibold text-[#0B2148]">
+                  Are you sure you want to permanently delete:
+                </p>
+                <div className="font-mono text-xs text-[#991B1B]">
+                  <strong>{userToDelete.name}</strong> ({userToDelete.email})
+                </div>
+                {userToDelete.roles?.includes("SUPERADMIN") && (
+                  <p className="text-[11px] font-bold text-[#DC2626] uppercase tracking-wide">
+                    ⚠️ Caution: You are deleting a SUPERADMIN user. Only Ultra Admin has this authorization.
+                  </p>
+                )}
+                {userToDelete.roles?.includes("ULTRA_ADMIN") && (
+                  <p className="text-[11px] font-bold text-[#DC2626] uppercase tracking-wide">
+                    ⚠️ Critical: You are deleting an ULTRA ADMIN account.
+                  </p>
+                )}
+                <p className="text-[11px] text-[#526B91]">
+                  All associated tokens and active sessions will be terminated immediately.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUserToDelete(null)}
+                  disabled={deleteUserMutation.isPending}
+                  className="px-4 py-2 rounded-xl border border-[#D8E8FA] text-xs font-bold text-[#0B2148] hover:bg-[#F4F9FF] transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteUserMutation.mutate(userToDelete.id)}
+                  disabled={deleteUserMutation.isPending}
+                  className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                >
+                  {deleteUserMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                  Permanently Delete
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

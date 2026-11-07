@@ -122,7 +122,9 @@ export default function CreatePurchaseOrderPage() {
   const [vendorId, setVendorId] = useState("");
   const [orderDate, setOrderDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
-  const [paymentTerms, setPaymentTerms] = useState("30 Days Net");
+  const [paymentTerms, setPaymentTerms] = useState("CREDIT (30 Days Net)");
+  const [paymentTermType, setPaymentTermType] = useState<"CASH" | "CREDIT">("CREDIT");
+  const [creditDays, setCreditDays] = useState<number>(30);
   const [deliveryTerms, setDeliveryTerms] = useState("EXW Pune Assembly Depot");
   const [currency, setCurrency] = useState("INR");
   const [pendingCurrencyChange, setPendingCurrencyChange] = useState<string | null>(null);
@@ -477,10 +479,19 @@ export default function CreatePurchaseOrderPage() {
         setDuplicateMatchInfo({
           matchedProduct: match,
           crossBrandProducts: crossBrandMatches,
-          message: `Part Number / Item exists under brand "${match.brand}" (${match.partNumber}). Registering for "${brand || "new brand"}" creates a separate brand identity & distinct UIN.`
+          message: `Same component exists under brand "${match.brand}" with Part Number "${match.partNumber}". Reusing canonical Part Number for "${brand || "new brand"}" with distinct brand UIN.`
         });
-        if (opts?.forceAllocate && !partNumber) {
-          await fetchNextPartNumber(category, true);
+        // Core business rule: Same component always shares the same category Part Number across brands
+        const canonicalPart = match.partNumber || res.data?.suggestedPartNumber;
+        if (canonicalPart) {
+          setNewProductForm((prev) => ({
+            ...prev,
+            partNumber: canonicalPart,
+            category: match.category || prev.category,
+            unit: match.unit || prev.unit,
+            technicalSpecs: match.technicalSpecs || prev.technicalSpecs
+          }));
+          toast.info(`Standardized Part Number: Reusing canonical "${canonicalPart}" for brand "${brand || "new brand"}". Distinct UIN will be allocated.`);
         }
       } else {
         setDuplicateCheckStatus("CLEAN");
@@ -1526,17 +1537,93 @@ export default function CreatePurchaseOrderPage() {
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700 block">
-                      Payment Terms
-                    </label>
-                    <input
-                      type="text"
-                      value={paymentTerms}
-                      onChange={(e) => setPaymentTerms(e.target.value)}
-                      placeholder="e.g. 100% Advance, 30 Days Net"
-                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9]"
-                    />
+                  <div className="space-y-1 sm:col-span-2 bg-[#F8FAFC] p-3.5 rounded-2xl border border-[#D8E8FA]">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-[#0B2148] block">
+                        Payment Terms (Mandatory Selection) *
+                      </label>
+                      <span className="text-[10px] text-[#526B91]">Cash vs Credit commercial policy</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 pt-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentTermType("CASH");
+                          setPaymentTerms("CASH (Immediate Settlement)");
+                        }}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          paymentTermType === "CASH"
+                            ? "bg-emerald-50 border-emerald-500 shadow-xs ring-1 ring-emerald-500"
+                            : "bg-white border-[#D8E8FA] hover:border-[#0878F9]/50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-emerald-800">1. CASH PURCHASE</span>
+                          {paymentTermType === "CASH" && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                        </div>
+                        <p className="text-[10px] text-emerald-700 mt-0.5">
+                          Payment expected immediately upon commercial invoice / delivery.
+                        </p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentTermType("CREDIT");
+                          setPaymentTerms(`CREDIT (${creditDays} Days Net)`);
+                        }}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          paymentTermType === "CREDIT"
+                            ? "bg-blue-50 border-[#0878F9] shadow-xs ring-1 ring-[#0878F9]"
+                            : "bg-white border-[#D8E8FA] hover:border-[#0878F9]/50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[#0878F9]">2. CREDIT PURCHASE</span>
+                          {paymentTermType === "CREDIT" && <Check className="w-3.5 h-3.5 text-[#0878F9]" />}
+                        </div>
+                        <p className="text-[10px] text-[#526B91] mt-0.5">
+                          Payment due later under agreed supplier credit period.
+                        </p>
+                      </button>
+                    </div>
+
+                    {paymentTermType === "CREDIT" && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2.5 border-t border-[#D8E8FA] mt-2">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-700 block">Credit Period (Days)</label>
+                          <select
+                            value={creditDays}
+                            onChange={(e) => {
+                              const d = Number(e.target.value);
+                              setCreditDays(d);
+                              setPaymentTerms(`CREDIT (${d} Days Net)`);
+                            }}
+                            className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9]"
+                          >
+                            <option value={15}>15 Days Net</option>
+                            <option value={30}>30 Days Net (Standard)</option>
+                            <option value={45}>45 Days Net</option>
+                            <option value={60}>60 Days Net</option>
+                            <option value={90}>90 Days Net</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-semibold text-slate-700 block">Calculated Payment Due Date</label>
+                          <div className="py-2 px-3 bg-white border border-[#D8E8FA] rounded-xl text-xs font-mono font-bold text-[#0878F9]">
+                            {new Date(Date.now() + creditDays * 24 * 60 * 60 * 1000).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {paymentTermType === "CASH" && (
+                      <div className="pt-2 border-t border-[#D8E8FA] mt-2 text-[11px] text-emerald-800 flex items-center gap-2">
+                        <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Immediate payment tracking active. Payment method can be recorded upon invoice arrival.</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-1">
@@ -4099,6 +4186,21 @@ export default function CreatePurchaseOrderPage() {
                         <p className="text-[11px] text-[#526B91] mt-0.5">
                           Requester: {pr.requestedBy?.name || "Staff"} • {pr.items?.length || 0} items • Required by: {pr.requiredDate?.split("T")[0]}
                         </p>
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {pr.items?.slice(0, 4).map((it: any) => (
+                            <span
+                              key={it.id}
+                              className="inline-flex items-center gap-1 font-mono text-[10px] font-bold bg-[#EAF5FF] text-[#0878F9] px-1.5 py-0.5 rounded border border-[#BFDBFE]"
+                            >
+                              P/N: {it.material?.sku || "Part"} ({it.requestedQuantity} {it.material?.unit || "PCS"})
+                            </span>
+                          ))}
+                          {(pr.items?.length || 0) > 4 && (
+                            <span className="text-[10px] font-bold text-[#526B91] bg-slate-100 px-1 py-0.5 rounded">
+                              +{pr.items.length - 4} more
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         type="button"

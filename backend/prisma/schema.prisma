@@ -89,6 +89,13 @@ model User {
   preparedPayrolls      PayrollPeriod[]          @relation("PayrollPreparer")
   approvedPayrolls      PayrollPeriod[]          @relation("PayrollApprover")
   paidPayrolls          PayrollPeriod[]          @relation("PayrollPayer")
+  createdInvoiceOrders          InvoiceOrder[]            @relation("IOCreator")
+  verifiedInvoiceOrders         InvoiceOrder[]            @relation("IOVerifier")
+  approvedInvoiceOrders         InvoiceOrder[]            @relation("IOApprover")
+  invoiceOrderVerifications     InvoiceOrderVerification[] @relation("IOVerificationUser")
+  invoiceOrderApprovals         InvoiceOrderApproval[]     @relation("IOApprovalUser")
+  recordedInvoicePayments       InvoicePayment[]          @relation("IOPaymentRecorder")
+  uploadedInvoiceDocuments      InvoiceDocument[]         @relation("IODocumentUploader")
 }
 
 
@@ -321,6 +328,7 @@ model Vendor {
   goodsReceipts  GoodsReceipt[]
   supplierInvoices SupplierInvoice[]
   assets         CompanyAsset[]
+  invoiceOrders  InvoiceOrder[]
 }
 
 model RefreshToken {
@@ -337,6 +345,7 @@ model Material {
   id          String    @id @default(uuid())
   name        String
   materialCode String?
+  partNumber  String?   // Canonical engineering part number (e.g. BMS-001)
   description String?
   category    String
   sku         String    @unique
@@ -369,6 +378,10 @@ model Material {
   packingConfigs       PackingMaterialConfig[]
   products             Product[]
   supplierInvoiceItems SupplierInvoiceItem[]
+  invoiceOrderItems    InvoiceOrderItem[]
+
+  @@index([partNumber])
+  @@index([materialCode])
 }
 
 model CellMaster {
@@ -456,6 +469,7 @@ model AuditLog {
 }
 
 enum Role {
+  ULTRA_ADMIN
   SUPERADMIN
   ADMIN
   INVENTORY_MANAGER
@@ -1369,6 +1383,7 @@ model PurchaseOrder {
   approvals           PurchaseOrderApproval[]
   goodsReceipts       GoodsReceipt[]
   supplierInvoices    SupplierInvoice[]
+  invoiceOrders       InvoiceOrder[]
 
   @@index([poNumber])
   @@index([vendorId])
@@ -1401,6 +1416,7 @@ model PurchaseOrderItem {
   lineSubtotal     Decimal       @db.Decimal(12,2)
   lineTotal        Decimal       @db.Decimal(12,2)
   specification    String?
+  invoiceOrderItems InvoiceOrderItem[]
 }
 
 enum GoodsReceiptStatus {
@@ -1416,8 +1432,8 @@ enum GoodsReceiptStatus {
 model GoodsReceipt {
   id              String             @id @default(uuid())
   grnNumber       String             @unique // GRN-000001
-  purchaseOrderId String
-  purchaseOrder   PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
   vendorId        String
   vendor          Vendor             @relation(fields: [vendorId], references: [id])
   receivedDate    DateTime           @default(now())
@@ -1431,6 +1447,7 @@ model GoodsReceipt {
   updatedAt       DateTime           @updatedAt
 
   items           GoodsReceiptItem[]
+  invoiceOrders   InvoiceOrder[]
 
   @@index([grnNumber])
   @@index([purchaseOrderId])
@@ -1473,6 +1490,37 @@ model Brand {
   @@index([name])
 }
 
+model ComponentMaster {
+  id                     String    @id @default(uuid())
+  partNumber             String    @unique // Canonical Part Number: BMS-001, CELL-001
+  category               String    // e.g. "BMS", "CELLS", "BUSBAR"
+  name                   String    // Canonical component identity / name
+  manufacturerPartNumber String?   // OEM / Manufacturer Part Number (e.g. JK-BD6A20S10P)
+  description            String?
+  unit                   String    @default("PCS")
+  technicalSpecs         String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @default(now()) @updatedAt
+
+  products               Product[]
+
+  @@index([category])
+  @@index([partNumber])
+  @@index([name])
+  @@index([manufacturerPartNumber])
+}
+
+model CategorySequence {
+  id           String   @id @default(uuid())
+  category     String   @unique // Normalized category, e.g. "BMS", "CELLS", "BUSBAR"
+  prefix       String   // e.g. "BMS", "CELL", "BUS"
+  nextSequence Int      @default(1)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  @@index([category])
+}
+
 model Product {
   id                  String             @id @default(uuid())
   uin                 String             @unique // VEN3-BILLSEQ-BRAND3-BRANDSEQ-PARTNO
@@ -1483,6 +1531,8 @@ model Product {
   brandId             String?
   brandRef            Brand?             @relation(fields: [brandId], references: [id])
   category            String
+  componentId         String?
+  component           ComponentMaster?   @relation(fields: [componentId], references: [id])
   materialId          String?
   material            Material?          @relation(fields: [materialId], references: [id])
   technicalSpecs      String?
@@ -1496,6 +1546,7 @@ model Product {
   purchaseOrderItems  PurchaseOrderItem[]
   goodsReceiptItems   GoodsReceiptItem[]
   supplierInvoiceItems SupplierInvoiceItem[]
+  invoiceOrderItems   InvoiceOrderItem[]
 
   @@unique([partNumber, brand])
   @@unique([partNumber, brandId])
@@ -1505,6 +1556,7 @@ model Product {
   @@index([brand])
   @@index([brandId])
   @@index([category])
+  @@index([componentId])
 }
 
 model PurchaseOrderAttachment {
@@ -1583,6 +1635,191 @@ model SupplierInvoiceItem {
   @@index([supplierInvoiceId])
 }
 
+enum InvoiceOrderType {
+  PROFORMA
+  FINAL_TAX_INVOICE
+  CREDIT_NOTE
+  DEBIT_NOTE
+}
+
+enum InvoiceOrderStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_INVENTORY
+  INVENTORY_VERIFIED
+  PENDING_ADMIN_APPROVAL
+  CORRECTION_REQUIRED
+  REJECTED
+  APPROVED
+  QC_PENDING
+  PARTIALLY_ACCEPTED
+  READY_TO_STOCK
+  STOCKED
+  CLOSED
+}
+
+enum InvoicePaymentMode {
+  CREDIT
+  PAID
+  PARTIALLY_PAID
+}
+
+model InvoiceOrder {
+  id                    String             @id @default(uuid())
+  ioNumber              String             @unique // IO-000001
+  purchaseOrderId       String?
+  purchaseOrder         PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
+  isDirect              Boolean            @default(false)
+  vendorId              String
+  vendor                Vendor             @relation(fields: [vendorId], references: [id])
+  supplierInvoiceNumber String
+  invoiceType           InvoiceOrderType   @default(FINAL_TAX_INVOICE)
+  invoiceDate           DateTime           @default(now())
+  currency              String             @default("INR")
+  subtotal              Decimal            @db.Decimal(12, 2)
+  discount              Decimal            @default(0) @db.Decimal(12, 2)
+  tax                   Decimal            @default(0) @db.Decimal(12, 2)
+  additionalCharges     Decimal            @default(0) @db.Decimal(12, 2)
+  grandTotal            Decimal            @db.Decimal(12, 2)
+  paymentMode           InvoicePaymentMode @default(CREDIT)
+  paymentMethod         String?            // BANK_TRANSFER, UPI, CASH, CHEQUE, OTHER
+  paymentStatus         String             @default("UNPAID") // UNPAID, PARTIALLY_PAID, PAID
+  paidAmount            Decimal            @default(0) @db.Decimal(12, 2)
+  outstandingAmount     Decimal            @default(0) @db.Decimal(12, 2)
+  status                InvoiceOrderStatus @default(DRAFT)
+  createdById           String
+  createdBy             User               @relation("IOCreator", fields: [createdById], references: [id])
+  inventoryVerifiedById String?
+  inventoryVerifiedBy   User?              @relation("IOVerifier", fields: [inventoryVerifiedById], references: [id])
+  inventoryVerifiedAt   DateTime?
+  adminApprovedById     String?
+  adminApprovedBy       User?              @relation("IOApprover", fields: [adminApprovedById], references: [id])
+  adminApprovedAt       DateTime?
+  goodsReceiptId        String?
+  goodsReceipt          GoodsReceipt?      @relation(fields: [goodsReceiptId], references: [id])
+  rejectionReason       String?
+  correctionRemarks     String?
+  remarks               String?
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  items                 InvoiceOrderItem[]
+  verifications         InvoiceOrderVerification[]
+  approvals             InvoiceOrderApproval[]
+  payments              InvoicePayment[]
+  documents             InvoiceDocument[]
+
+  @@index([ioNumber])
+  @@index([purchaseOrderId])
+  @@index([vendorId])
+  @@index([status])
+  @@index([createdById])
+}
+
+model InvoiceOrderItem {
+  id                     String             @id @default(uuid())
+  invoiceOrderId         String
+  invoiceOrder           InvoiceOrder       @relation(fields: [invoiceOrderId], references: [id], onDelete: Cascade)
+  poItemId               String?
+  poItem                 PurchaseOrderItem? @relation(fields: [poItemId], references: [id])
+  materialId             String?
+  material               Material?          @relation(fields: [materialId], references: [id])
+  productId              String?
+  product                Product?           @relation(fields: [productId], references: [id])
+  description            String
+  unit                   String             @default("PCS")
+  invoiceQuantity        Int
+  actualReceivedQuantity Int                @default(0)
+  acceptedQuantity       Int                @default(0)
+  rejectedQuantity       Int                @default(0)
+  damagedQuantity        Int                @default(0)
+  shortageQuantity       Int                @default(0)
+  unitPrice              Decimal            @db.Decimal(12, 2)
+  discount               Decimal            @default(0) @db.Decimal(12, 2)
+  taxRate                Decimal            @default(0) @db.Decimal(5, 2)
+  taxAmount              Decimal            @default(0) @db.Decimal(12, 2)
+  lineTotal              Decimal            @db.Decimal(12, 2)
+  batchNumber            String?
+  serialNumber           String?
+  warehouseId            String?
+  warehouse              Warehouse?         @relation(fields: [warehouseId], references: [id])
+  warehouseLocationId    String?
+  warehouseLocation      WarehouseLocation? @relation(fields: [warehouseLocationId], references: [id])
+  inspectionNotes        String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@index([invoiceOrderId])
+  @@index([poItemId])
+  @@index([materialId])
+  @@index([productId])
+}
+
+model InvoiceOrderVerification {
+  id                 String       @id @default(uuid())
+  invoiceOrderId     String
+  invoiceOrder       InvoiceOrder @relation(fields: [invoiceOrderId], references: [id], onDelete: Cascade)
+  verifiedById       String
+  verifiedBy         User         @relation("IOVerificationUser", fields: [verifiedById], references: [id])
+  verificationStatus String       // VERIFIED, CORRECTION_REQUESTED, DRAFT
+  remarks            String?
+  discrepancySummary String?
+  verifiedAt         DateTime     @default(now())
+
+  @@index([invoiceOrderId])
+  @@index([verifiedById])
+}
+
+model InvoiceOrderApproval {
+  id             String       @id @default(uuid())
+  invoiceOrderId String
+  invoiceOrder   InvoiceOrder @relation(fields: [invoiceOrderId], references: [id], onDelete: Cascade)
+  approvedById   String
+  approvedBy     User         @relation("IOApprovalUser", fields: [approvedById], references: [id])
+  approvalStatus String       // APPROVED, REJECTED, CORRECTION_REQUIRED
+  remarks        String?
+  approvedAt     DateTime     @default(now())
+
+  @@index([invoiceOrderId])
+  @@index([approvedById])
+}
+
+model InvoicePayment {
+  id               String       @id @default(uuid())
+  invoiceOrderId   String
+  invoiceOrder     InvoiceOrder @relation(fields: [invoiceOrderId], references: [id], onDelete: Cascade)
+  amount           Decimal      @db.Decimal(12, 2)
+  paymentMethod    String       // BANK_TRANSFER, UPI, CASH, CHEQUE, OTHER
+  paymentDate      DateTime     @default(now())
+  paymentReference String?
+  paymentDocument  String?
+  recordedById     String
+  recordedBy       User         @relation("IOPaymentRecorder", fields: [recordedById], references: [id])
+  notes            String?
+  createdAt        DateTime     @default(now())
+
+  @@index([invoiceOrderId])
+  @@index([recordedById])
+}
+
+model InvoiceDocument {
+  id             String       @id @default(uuid())
+  invoiceOrderId String
+  invoiceOrder   InvoiceOrder @relation(fields: [invoiceOrderId], references: [id], onDelete: Cascade)
+  documentType   String       // PROFORMA_INVOICE, FINAL_TAX_INVOICE, DELIVERY_CHALLAN, LORRY_RECEIPT, PHOTOGRAPH, OTHER
+  fileName       String
+  fileReference  String       // URL or media path
+  fileSize       Int?
+  fileType       String?
+  uploadedById   String
+  uploadedBy     User         @relation("IODocumentUploader", fields: [uploadedById], references: [id])
+  uploadedAt     DateTime     @default(now())
+
+  @@index([invoiceOrderId])
+  @@index([uploadedById])
+}
+
+
 model Warehouse {
   id        String              @id @default(uuid())
   name      String              @unique
@@ -1597,6 +1834,7 @@ model Warehouse {
   destinationTransfers StockTransfer[]     @relation("DestinationWarehouse")
   packingRecords       PackingRecord[]
   assets               CompanyAsset[]
+  invoiceOrderItems    InvoiceOrderItem[]
 }
 
 model WarehouseLocation {
@@ -1611,6 +1849,7 @@ model WarehouseLocation {
   originTransferItems      StockTransferItem[] @relation("OriginLocation")
   destinationTransferItems StockTransferItem[] @relation("DestinationLocation")
   packingRecords           PackingRecord[]
+  invoiceOrderItems        InvoiceOrderItem[]
 
   @@unique([warehouseId, code])
 }

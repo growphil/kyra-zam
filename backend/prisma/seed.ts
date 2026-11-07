@@ -30,6 +30,13 @@ async function main() {
 
   const usersToEnsure = [
     {
+      id: "00000000-0000-0000-0000-000000000000",
+      name: "Master Ultra Admin",
+      email: "ultraadmin@kyrazam.com",
+      roles: [Role.ULTRA_ADMIN],
+      pass: "UltraAdmin@2025"
+    },
+    {
       id: "00000000-0000-0000-0000-000000000001",
       name: "Arjun Mehta",
       email: "superadmin@kyrazam.com",

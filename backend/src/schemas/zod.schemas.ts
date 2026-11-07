@@ -386,6 +386,7 @@ export const BrandCreateSchema = z.object({
 export const ProductCreateSchema = z.object({
   name: z.string().min(1, "Product name is required"),
   partNumber: z.string().optional(), // Auto-generated as CAT-SECNO if omitted
+  componentId: z.string().uuid().optional().nullable(),
   manufacturerPartNumber: z.string().optional().nullable(),
   brand: z.string().min(1, "Brand is required"),
   brandId: z.string().uuid().optional().nullable(),
@@ -402,6 +403,7 @@ export const ProductCreateSchema = z.object({
 export const ProductUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   partNumber: z.string().min(1).optional(),
+  componentId: z.string().uuid().optional().nullable(),
   manufacturerPartNumber: z.string().optional().nullable(),
   brand: z.string().min(1).optional(),
   brandId: z.string().uuid().optional().nullable(),
@@ -525,6 +527,102 @@ export const BlindReceivingSubmitSchema = z.object({
   isDraft: z.boolean().optional().default(false),
   supplierInvoiceNumber: z.string().optional().nullable(),
   items: z.array(BlindReceivingItemSchema).min(1, "At least one item line must be received"),
+});
+
+export const InvoiceOrderItemCreateSchema = z.object({
+  poItemId: z.string().optional().nullable(),
+  materialId: z.string().optional().nullable(),
+  productId: z.string().optional().nullable(),
+  description: z.string().min(1, "Description is required"),
+  unit: z.string().default("PCS"),
+  invoiceQuantity: z.number().int().positive("Invoice quantity must be greater than 0"),
+  unitPrice: z.number().min(0, "Unit price must be non-negative"),
+  discount: z.number().min(0).optional().default(0),
+  taxRate: z.number().min(0).max(100).optional().default(0),
+  batchNumber: z.string().optional().nullable(),
+  serialNumber: z.string().optional().nullable(),
+  warehouseId: z.string().optional().nullable(),
+  warehouseLocationId: z.string().optional().nullable(),
+  specification: z.string().optional().nullable(),
+});
+
+export const InvoiceOrderCreateSchema = z.object({
+  purchaseOrderId: z.string().optional().nullable(),
+  isDirect: z.boolean().optional().default(false),
+  vendorId: z.string().min(1, "Vendor is required"),
+  supplierInvoiceNumber: z.string().min(1, "Vendor Invoice Number is required"),
+  invoiceType: z.enum(["PROFORMA", "FINAL_TAX_INVOICE", "CREDIT_NOTE", "DEBIT_NOTE"]).default("FINAL_TAX_INVOICE"),
+  invoiceDate: z.string().optional(),
+  currency: z.string().default("INR"),
+  additionalCharges: z.number().min(0).optional().default(0),
+  paymentMode: z.enum(["CREDIT", "PAID", "PARTIALLY_PAID"]).default("CREDIT"),
+  paymentMethod: z.string().optional().nullable(),
+  initialPayment: z.object({
+    amount: z.number().positive("Payment amount must be greater than 0"),
+    paymentMethod: z.string().min(1, "Payment method is required"),
+    paymentReference: z.string().optional().nullable(),
+    paymentDocument: z.string().optional().nullable(),
+    notes: z.string().optional().nullable(),
+  }).optional().nullable(),
+  documents: z.array(z.object({
+    documentType: z.string().default("FINAL_TAX_INVOICE"),
+    fileName: z.string(),
+    fileReference: z.string(),
+    fileSize: z.number().optional().nullable(),
+    fileType: z.string().optional().nullable(),
+  })).optional().default([]),
+  items: z.array(InvoiceOrderItemCreateSchema).min(1, "At least one item is required in the IO"),
+  remarks: z.string().optional().nullable(),
+  submitNow: z.boolean().optional().default(false),
+});
+
+export const InvoiceOrderVerificationSchema = z.object({
+  remarks: z.string().optional().nullable(),
+  isDraft: z.boolean().optional().default(false),
+  requestCorrection: z.boolean().optional().default(false),
+  correctionRemarks: z.string().optional().nullable(),
+  items: z.array(z.object({
+    itemId: z.string(),
+    actualReceivedQuantity: z.number().int().min(0, "Actual received quantity cannot be negative"),
+    acceptedQuantity: z.number().int().min(0, "Accepted quantity cannot be negative"),
+    rejectedQuantity: z.number().int().min(0, "Rejected quantity cannot be negative").default(0),
+    damagedQuantity: z.number().int().min(0, "Damaged quantity cannot be negative").default(0),
+    batchNumber: z.string().optional().nullable(),
+    serialNumber: z.string().optional().nullable(),
+    warehouseId: z.string().optional().nullable(),
+    warehouseLocationId: z.string().optional().nullable(),
+    inspectionNotes: z.string().optional().nullable(),
+  })).min(1, "At least one item must be verified"),
+});
+
+export const InvoiceOrderApprovalSchema = z.object({
+  remarks: z.string().optional().nullable(),
+});
+
+export const InvoiceOrderRejectSchema = z.object({
+  reason: z.string().min(1, "Rejection reason is required"),
+  remarks: z.string().optional().nullable(),
+});
+
+export const InvoiceOrderCorrectionSchema = z.object({
+  remarks: z.string().min(1, "Correction remarks are required"),
+});
+
+export const InvoicePaymentCreateSchema = z.object({
+  amount: z.number().positive("Payment amount must be greater than 0"),
+  paymentMethod: z.string().min(1, "Payment method is required"),
+  paymentDate: z.string().optional(),
+  paymentReference: z.string().optional().nullable(),
+  paymentDocument: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+
+export const InvoiceDocumentUploadSchema = z.object({
+  documentType: z.enum(["PROFORMA_INVOICE", "FINAL_TAX_INVOICE", "DELIVERY_CHALLAN", "LORRY_RECEIPT", "PHOTOGRAPH", "OTHER"]).default("FINAL_TAX_INVOICE"),
+  fileName: z.string().min(1),
+  fileReference: z.string().min(1),
+  fileSize: z.number().optional().nullable(),
+  fileType: z.string().optional().nullable(),
 });
 
 export const WarehouseCreateSchema = z.object({
@@ -804,6 +902,7 @@ export const PaxTypeUpdateSchema = z.object({
 export const MaterialMappingCreateSchema = z.object({
   name: z.string().min(1, "Material name is required"),
   materialCode: z.string().optional().nullable(),
+  partNumber: z.string().optional().nullable(),
   sku: z.string().min(1, "Part Number / SKU is required"),
   category: z.string().min(1, "Category is required"),
   unit: z.string().min(1, "Unit is required").default("PCS"),
@@ -817,6 +916,7 @@ export const MaterialMappingCreateSchema = z.object({
 export const MaterialMappingUpdateSchema = z.object({
   name: z.string().min(1).optional(),
   materialCode: z.string().optional().nullable(),
+  partNumber: z.string().optional().nullable(),
   sku: z.string().min(1).optional(),
   category: z.string().min(1).optional(),
   unit: z.string().min(1).optional(),

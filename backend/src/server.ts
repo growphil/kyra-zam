@@ -22,6 +22,7 @@ import { crmRoutes } from "./routes/crm";
 import { quotationRoutes } from "./routes/quotations";
 import { salesOrderRoutes } from "./routes/salesOrders";
 import { procurementRoutes } from "./routes/procurement";
+import { invoiceOrderRoutes } from "./routes/invoiceOrders";
 import { productionRoutes } from "./routes/production";
 import { qualityRoutes } from "./routes/quality";
 import { dispatchRoutes } from "./routes/dispatch";
@@ -96,6 +97,8 @@ async function main() {
   await app.register(quotationRoutes, { prefix: "/crm/quotations" });
   await app.register(salesOrderRoutes, { prefix: "/crm/sales-orders" });
   await app.register(procurementRoutes, { prefix: "/crm/procurement" });
+  await app.register(invoiceOrderRoutes, { prefix: "/crm/procurement/invoice-orders" });
+  await app.register(invoiceOrderRoutes, { prefix: "/procurement/invoice-orders" });
   await app.register(productionRoutes, { prefix: "/crm/production" });
   await app.register(qualityRoutes, { prefix: "/crm/quality" });
   await app.register(dispatchRoutes, { prefix: "/crm/dispatch" });

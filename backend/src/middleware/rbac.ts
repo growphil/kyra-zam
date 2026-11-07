@@ -2,7 +2,7 @@ import { FastifyRequest, FastifyReply } from "fastify";
 import { prisma } from "../prisma";
 
 export type UserRole =
-  | "SUPERADMIN" | "ADMIN" | "INVENTORY_MANAGER"
+  | "ULTRA_ADMIN" | "SUPERADMIN" | "ADMIN" | "INVENTORY_MANAGER"
   | "TEST_ENGINEER" | "ASSEMBLY_TECHNICIAN" | "PAX_TEST_ENGINEER"
   | "SUPERVISOR" | "SALES_EXECUTIVE" | "ACCOUNTANT" | "PURCHASE_MANAGER"
   | "MARKETING_MANAGER" | "QC" | "PACKING_OPERATOR" | "PACKING" | "SELLER" | "HR_PAYROLL";
@@ -34,7 +34,9 @@ export function requireRoles(...roles: UserRole[]) {
       // Authoritative identity and permissions derived directly from current database roles
       request.user = { id: dbUser.id, email: dbUser.email, roles: dbUser.roles as any } as any;
 
-      const hasPermission = roles.some(role => (dbUser.roles as UserRole[]).includes(role));
+      // ULTRA_ADMIN has root authority across the entire application with universal data-wide access
+      const isUltraAdmin = (dbUser.roles as string[]).includes("ULTRA_ADMIN");
+      const hasPermission = isUltraAdmin || roles.some(role => (dbUser.roles as UserRole[]).includes(role));
       if (!hasPermission) {
         return reply.status(403).send({ error: "Access denied" });
       }

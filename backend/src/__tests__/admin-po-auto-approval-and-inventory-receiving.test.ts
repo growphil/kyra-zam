@@ -502,9 +502,11 @@ describe("KYRA ZAM 2.0 — Admin PO Auto-Approval & Inventory Receiving Workflow
   });
 
   // -------------------------------------------------------------
-  // Test 10: Partial quantity (< outstanding) is rejected; Full receipt required
+  // Test 10: Multi-stage partial deliveries succeed, track remaining quantity and complete PO to RECEIVED
   // -------------------------------------------------------------
-  it("10. Partial delivery (< outstanding) -> Rejected with 400 Bad Request; Full receipt strictly required", async () => {
+  it("10. Multi-stage partial deliveries succeed (60 -> 25 -> 15), PO transitions PARTIALLY_RECEIVED -> RECEIVED with exact stock accumulation", async () => {
+    const stockStart = (await prisma.material.findUnique({ where: { id: nqzMaterial.id } }))?.quantity || 0;
+
     const poRes = await app.inject({
       method: "POST",
       url: "/crm/procurement/purchase-orders",
@@ -530,52 +532,83 @@ describe("KYRA ZAM 2.0 — Admin PO Auto-Approval & Inventory Receiving Workflow
     const po = poRes.json();
     const poItem = po.items[0];
 
-    // Deliver only 40 out of 100 (partial) -> Must be rejected with 400
-    const partialRes = await app.inject({
+    // Stage 1: First delivery: 60 units (out of 100) -> Outstanding becomes 40, PO PARTIALLY_RECEIVED
+    const stage1Res = await app.inject({
       method: "POST",
       url: `/crm/procurement/receiving/purchase-orders/${po.id}/receive`,
       headers: { authorization: `Bearer ${inventoryManagerToken}` },
       payload: {
-        supplierInvoiceNumber: "INV-PARTIAL-001",
+        supplierInvoiceNumber: "INV-PARTIAL-60",
         items: [
           {
             poItemId: poItem.id,
-            passedQuantity: 40,
+            passedQuantity: 60,
             defectiveQuantity: 0,
-            batchNumber: "BATCH-PARTIAL-40"
+            batchNumber: "BATCH-P1-60"
           }
         ]
       }
     });
 
-    assert.equal(partialRes.statusCode, 400, "Partial delivery must be rejected with 400 Bad Request");
-    const err = partialRes.json();
-    assert.match(err.error, /Quantity mismatch for/i);
-    assert.match(err.error, /Full receipt required/i);
-    assert.doesNotMatch(err.error, /100|40/i, "Must not leak actual or entered quantities in error message");
+    assert.equal(stage1Res.statusCode, 200, "First partial delivery (60/100) must succeed with 200 OK");
+    const stage1Data = stage1Res.json();
+    assert.equal(stage1Data.poStatus, "PARTIALLY_RECEIVED", "PO must transition to PARTIALLY_RECEIVED");
+    assert.equal(stage1Data.remainingPending, 40, "Remaining pending balance must be 40");
 
-    // Complete with 100% full receipt
-    const fullRes = await app.inject({
+    const stockAfter1 = (await prisma.material.findUnique({ where: { id: nqzMaterial.id } }))?.quantity || 0;
+    assert.equal(stockAfter1, stockStart + 60, "Stock must increase by 60 after first receipt");
+
+    // Stage 2: Second delivery: 25 units (out of 40 remaining) -> Outstanding becomes 15
+    const stage2Res = await app.inject({
       method: "POST",
       url: `/crm/procurement/receiving/purchase-orders/${po.id}/receive`,
       headers: { authorization: `Bearer ${inventoryManagerToken}` },
       payload: {
-        supplierInvoiceNumber: "INV-FULL-001",
+        supplierInvoiceNumber: "INV-PARTIAL-25",
         items: [
           {
             poItemId: poItem.id,
-            passedQuantity: 100,
+            passedQuantity: 25,
             defectiveQuantity: 0,
-            batchNumber: "BATCH-FULL-100"
+            batchNumber: "BATCH-P2-25"
           }
         ]
       }
     });
 
-    assert.equal(fullRes.statusCode, 200);
-    const result = fullRes.json();
-    assert.equal(result.poStatus, "RECEIVED", "PO must transition directly to RECEIVED on complete receipt");
-    assert.equal(result.remainingPending, 0);
+    assert.equal(stage2Res.statusCode, 200, "Second partial delivery (25/40) must succeed with 200 OK");
+    const stage2Data = stage2Res.json();
+    assert.equal(stage2Data.poStatus, "PARTIALLY_RECEIVED", "PO must remain PARTIALLY_RECEIVED");
+    assert.equal(stage2Data.remainingPending, 15, "Remaining pending balance must be 15");
+
+    const stockAfter2 = (await prisma.material.findUnique({ where: { id: nqzMaterial.id } }))?.quantity || 0;
+    assert.equal(stockAfter2, stockStart + 85, "Stock must accumulate to +85");
+
+    // Stage 3: Third delivery: 15 units (fulfilling all 100) -> PO transitions to RECEIVED
+    const stage3Res = await app.inject({
+      method: "POST",
+      url: `/crm/procurement/receiving/purchase-orders/${po.id}/receive`,
+      headers: { authorization: `Bearer ${inventoryManagerToken}` },
+      payload: {
+        supplierInvoiceNumber: "INV-FINAL-15",
+        items: [
+          {
+            poItemId: poItem.id,
+            passedQuantity: 15,
+            defectiveQuantity: 0,
+            batchNumber: "BATCH-P3-15"
+          }
+        ]
+      }
+    });
+
+    assert.equal(stage3Res.statusCode, 200, "Third delivery (15/15) completing the PO must succeed with 200 OK");
+    const stage3Data = stage3Res.json();
+    assert.equal(stage3Data.poStatus, "RECEIVED", "PO must transition to RECEIVED upon complete fulfillment");
+    assert.equal(stage3Data.remainingPending, 0, "Remaining pending must be 0");
+
+    const stockAfter3 = (await prisma.material.findUnique({ where: { id: nqzMaterial.id } }))?.quantity || 0;
+    assert.equal(stockAfter3, stockStart + 100, "Total stock must equal initial + 100 exactly, with no double counting");
   });
 
   // -------------------------------------------------------------

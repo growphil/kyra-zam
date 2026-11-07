@@ -455,6 +455,14 @@ export default function InventoryPage() {
         icon={<Archive className="w-5 h-5" />}
         actions={
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => router.push(`/${roleSlug}/procurement/invoice-orders/verification`)}
+              className="px-3.5 py-2 bg-[#0878F9] hover:bg-[#0667DB] text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              title="Verify incoming supplier invoices & goods"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Inv Verify</span>
+            </button>
             {isAdmin && (
               <button 
                 onClick={() => setShowModal("categories")}

@@ -15,7 +15,12 @@ import {
   Trash,
   Edit2,
   Receipt,
-  Check
+  Check,
+  CheckCircle2,
+  ClipboardCheck,
+  PackageCheck,
+  Truck,
+  Boxes
 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -257,11 +262,11 @@ export default function PurchaseOrdersPage() {
     <div className="h-[calc(100vh-100px)] flex flex-col space-y-4 max-w-[1700px] mx-auto overflow-hidden pb-4">
       {/* Header */}
       <PageHeader
-        title={isInventoryManager ? "Purchase Orders & Receiving Verification" : "Purchase Orders"}
+        title={isInventoryManager ? "Purchase Order Inward & Verification" : "Purchase Orders"}
         subtitle={isInventoryManager 
-          ? "Authorized purchase orders ready for blind physical receipt and inventory verification." 
+          ? "Authorized purchase orders ready for physical inward verification, blind count, and goods receipt." 
           : `Active Orders: ${totalCount} Formal POs`}
-        icon={<FileText className="w-5 h-5 text-[#0878F9]" />}
+        icon={isInventoryManager ? <PackageCheck className="w-5 h-5 text-[#0878F9]" /> : <FileText className="w-5 h-5 text-[#0878F9]" />}
         actions={
           !isInventoryManager ? (
             <button 
@@ -276,43 +281,68 @@ export default function PurchaseOrdersPage() {
       />
 
       {/* Filters */}
-      <div className="flex-none flex gap-4 items-center bg-white border border-[#D8E8FA] p-3.5 rounded-xl shadow-2xs">
+      <div className="flex-none flex flex-wrap gap-3 items-center bg-white border border-[#D8E8FA] p-3.5 rounded-xl shadow-2xs">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#526B91]" />
           <input 
             type="text" 
-            placeholder="Search orders (Number, Vendor, Invoice)..."
+            placeholder={isInventoryManager ? "Search orders to verify (PO #, Vendor, Invoice #)..." : "Search orders (Number, Vendor, Invoice)..."}
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-lg pl-10 pr-3.5 py-2 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-[#0878F9]"
           />
         </div>
 
-        <select 
-          value={status}
-          onChange={(e) => { setStatus(e.target.value); setPage(1); }}
-          className="bg-[#F4F9FF] border border-[#D8E8FA] text-[#0B2148] rounded-lg px-3.5 py-2 text-xs focus:outline-none focus:border-[#0878F9]"
-        >
-          <option value="">All Statuses</option>
-          {!isInventoryManager && <option value="DRAFT">Draft</option>}
-          {!isInventoryManager && <option value="PENDING_APPROVAL">Pending Approval</option>}
-          <option value="APPROVED">Approved</option>
-          <option value="SENT">Sent</option>
-          {!isInventoryManager && <option value="PARTIALLY_RECEIVED">Partially Received</option>}
-          <option value="RECEIVED">Received</option>
-          {!isInventoryManager && <option value="CLOSED">Closed</option>}
-          {!isInventoryManager && <option value="CANCELLED">Cancelled</option>}
-        </select>
+        {isInventoryManager ? (
+          <div className="flex items-center gap-1.5 bg-[#F4F9FF] p-1 rounded-lg border border-[#D8E8FA]">
+            {[
+              { id: "", label: "All Orders" },
+              { id: "APPROVED", label: "Ready for Inward" },
+              { id: "SENT", label: "In Transit" },
+              { id: "PARTIALLY_RECEIVED", label: "Partially Received" },
+              { id: "RECEIVED", label: "Fully Verified" },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => { setStatus(tab.id); setPage(1); }}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all cursor-pointer ${
+                  status === tab.id
+                    ? "bg-[#0878F9] text-white shadow-2xs"
+                    : "text-[#526B91] hover:text-[#0B2148] hover:bg-white"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <>
+            <select 
+              value={status}
+              onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+              className="bg-[#F4F9FF] border border-[#D8E8FA] text-[#0B2148] rounded-lg px-3.5 py-2 text-xs focus:outline-none focus:border-[#0878F9]"
+            >
+              <option value="">All Statuses</option>
+              <option value="DRAFT">Draft</option>
+              <option value="PENDING_APPROVAL">Pending Approval</option>
+              <option value="APPROVED">Approved</option>
+              <option value="SENT">Sent</option>
+              <option value="PARTIALLY_RECEIVED">Partially Received</option>
+              <option value="RECEIVED">Received</option>
+              <option value="CLOSED">Closed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
 
-        {!isInventoryManager && (
-          <select 
-            value={vendorFilter}
-            onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
-            className="bg-[#F4F9FF] border border-[#D8E8FA] text-[#0B2148] rounded-lg px-3.5 py-2 text-xs focus:outline-none focus:border-[#0878F9]"
-          >
-            <option value="">All Vendors</option>
-            {vendors?.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
-          </select>
+            <select 
+              value={vendorFilter}
+              onChange={(e) => { setVendorFilter(e.target.value); setPage(1); }}
+              className="bg-[#F4F9FF] border border-[#D8E8FA] text-[#0B2148] rounded-lg px-3.5 py-2 text-xs focus:outline-none focus:border-[#0878F9]"
+            >
+              <option value="">All Vendors</option>
+              {vendors?.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            </select>
+          </>
         )}
       </div>
 
@@ -332,6 +362,7 @@ export default function PurchaseOrdersPage() {
                   <th className="px-4 py-3">Supplier Invoice #</th>
                   <th className="px-4 py-3">Order Date</th>
                   <th className="px-4 py-3">Expected Delivery</th>
+                  {isInventoryManager && <th className="px-4 py-3">Inward Progress</th>}
                   {!isInventoryManager && <th className="px-4 py-3">Grand Total</th>}
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
@@ -340,8 +371,18 @@ export default function PurchaseOrdersPage() {
               <tbody className="divide-y divide-[#E8F1FC] text-xs text-[#0B2148]">
                 {pos.map((po: any) => (
                   <tr key={po.id} className="hover:bg-[#F4F9FF]/80 transition-colors">
-                    <td className="px-4 py-3 font-mono font-bold text-[#0B2148] text-xs">{po.poNumber}</td>
-                    <td className="px-4 py-3 text-xs text-[#0B2148] font-semibold">{po.vendorName || po.vendor?.name}</td>
+                    <td className="px-4 py-3 font-mono font-bold text-[#0B2148] text-xs">
+                      <div>{po.poNumber}</div>
+                      {isInventoryManager && (
+                        <span className="text-[10px] font-medium text-[#0878F9] block">
+                          Receiving Ready
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[#0B2148] font-semibold">
+                      <div>{po.vendorName || po.vendor?.name}</div>
+                      {po.vendorContact && <div className="text-[11px] font-normal text-[#526B91]">{po.vendorContact}</div>}
+                    </td>
                     <td className="px-4 py-3">
                       {po.supplierInvoiceNumber || po.invoiceNumber ? (
                         <div className="flex items-center gap-1.5">
@@ -377,31 +418,71 @@ export default function PurchaseOrdersPage() {
                     <td className="px-4 py-3 text-xs text-[#526B91] font-medium">
                       {new Date(po.expectedDeliveryDate).toLocaleDateString()}
                     </td>
+                    {isInventoryManager && (
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-[#0878F9] rounded-full transition-all"
+                              style={{ width: `${po.totalLines ? Math.round(((po.completedLines || 0) / po.totalLines) * 100) : 0}%` }}
+                            />
+                          </div>
+                          <span className="text-[11px] font-mono font-semibold text-[#526B91]">
+                            {po.completedLines ?? 0}/{po.totalLines ?? 0}
+                          </span>
+                        </div>
+                      </td>
+                    )}
                     {!isInventoryManager && (
                       <td className="px-4 py-3 font-bold text-[#0B2148] text-xs font-mono">
                         {po.currency} {parseFloat((po.grandTotal || 0).toString()).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
                     )}
                     <td className="px-4 py-3">
-                      <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center ${
-                        po.status === "RECEIVED" || po.status === "CLOSED" || po.status === "APPROVED" ? "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]" :
-                        po.status === "CANCELLED" || po.status === "REJECTED" ? "bg-[#FEE2E2] text-[#991B1B] border border-[#FECACA]" :
-                        po.status === "SENT" ? "bg-[#DBEAFE] text-[#1D4ED8] border border-[#BFDBFE]" :
-                        po.status === "PARTIALLY_RECEIVED" ? "bg-[#F3E8FF] text-[#6B21A8] border border-[#E9D5FF]" :
-                        "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]"
-                      }`}>
-                        {po.status}
-                      </span>
+                      {isInventoryManager ? (
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                          po.status === "RECEIVED" ? "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]" :
+                          po.status === "PARTIALLY_RECEIVED" ? "bg-[#F3E8FF] text-[#6B21A8] border border-[#E9D5FF]" :
+                          po.status === "SENT" ? "bg-[#DBEAFE] text-[#1D4ED8] border border-[#BFDBFE]" :
+                          "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]"
+                        }`}>
+                          {po.status === "RECEIVED" && <Check className="w-3 h-3" />}
+                          {po.status === "SENT" && <Truck className="w-3 h-3" />}
+                          {po.status === "APPROVED" ? "Ready to Receive" : po.status.replace("_", " ")}
+                        </span>
+                      ) : (
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center ${
+                          po.status === "RECEIVED" || po.status === "CLOSED" || po.status === "APPROVED" ? "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]" :
+                          po.status === "CANCELLED" || po.status === "REJECTED" ? "bg-[#FEE2E2] text-[#991B1B] border border-[#FECACA]" :
+                          po.status === "SENT" ? "bg-[#DBEAFE] text-[#1D4ED8] border border-[#BFDBFE]" :
+                          po.status === "PARTIALLY_RECEIVED" ? "bg-[#F3E8FF] text-[#6B21A8] border border-[#E9D5FF]" :
+                          "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]"
+                        }`}>
+                          {po.status}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {isInventoryManager ? (
-                        <a 
-                          href={`/${roleSlug}/procurement/purchase-orders/${po.id}/receive`} 
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-[#0878F9] hover:bg-[#0667DB] text-white rounded-lg text-xs font-bold transition-all shadow-2xs"
-                        >
-                          Verify &amp; Receive
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        </a>
+                        <div className="flex items-center justify-end gap-2">
+                          {po.status === "RECEIVED" ? (
+                            <a 
+                              href={`/${roleSlug}/procurement/purchase-orders/${po.id}/receive`} 
+                              className="inline-flex items-center gap-1 px-3 py-1 bg-[#F4F9FF] hover:bg-[#EAF5FF] text-[#526B91] hover:text-[#0B2148] border border-[#D8E8FA] rounded-lg text-xs font-semibold transition-all"
+                            >
+                              <Check className="w-3.5 h-3.5 text-[#166534]" />
+                              View GRN
+                            </a>
+                          ) : (
+                            <a 
+                              href={`/${roleSlug}/procurement/purchase-orders/${po.id}/receive`} 
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#0878F9] hover:bg-[#0667DB] text-white rounded-lg text-xs font-bold transition-all shadow-xs"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Verify &amp; Receive
+                            </a>
+                          )}
+                        </div>
                       ) : (
                         <div className="inline-flex items-center gap-2 justify-end">
                           {["APPROVED", "SENT", "PARTIALLY_RECEIVED"].includes(po.status) && (
@@ -428,9 +509,15 @@ export default function PurchaseOrdersPage() {
             </table>
           ) : (
             <div className="h-full flex flex-col items-center justify-center p-16 text-[#526B91]">
-              <FileText className="w-10 h-10 mb-3 opacity-40 text-[#526B91]" />
-              <p className="text-sm font-semibold text-[#0B2148]">No Purchase Orders Found</p>
-              <p className="text-xs text-[#526B91] mt-1">Create a new purchase order or adjust your filters</p>
+              <PackageCheck className="w-10 h-10 mb-3 opacity-40 text-[#0878F9]" />
+              <p className="text-sm font-semibold text-[#0B2148]">
+                {isInventoryManager ? "No Orders Awaiting Verification" : "No Purchase Orders Found"}
+              </p>
+              <p className="text-xs text-[#526B91] mt-1">
+                {isInventoryManager
+                  ? "All authorized purchase orders have been processed or none match the selected filter."
+                  : "Create a new purchase order or adjust your filters"}
+              </p>
             </div>
           )}
         </div>
@@ -461,7 +548,7 @@ export default function PurchaseOrdersPage() {
 
       {/* Slide-out Create Drawer */}
       <AnimatePresence>
-        {isCreateOpen && (
+        {!isInventoryManager && isCreateOpen && (
           <div className="fixed inset-0 z-50 flex justify-end bg-[#061B3A]/40 backdrop-blur-xs">
             <div className="absolute inset-0" onClick={() => setIsCreateOpen(false)} />
 

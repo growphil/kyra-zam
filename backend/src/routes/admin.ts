@@ -353,6 +353,29 @@ export async function adminRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const { isActive } = request.body as { isActive: boolean };
+      const currentUser = request.user as { id: string; email?: string; roles: string[] };
+
+      const target = await prisma.user.findUnique({
+        where: { id },
+        select: { id: true, roles: true, email: true }
+      });
+      if (!target) {
+        return reply.status(404).send({ error: "User not found" });
+      }
+
+      const isCallerUltraAdmin = currentUser.roles.includes("ULTRA_ADMIN");
+      const isTargetUltraAdmin = (target.roles as string[]).includes("ULTRA_ADMIN");
+      const isTargetSuperAdmin = (target.roles as string[]).includes("SUPERADMIN");
+
+      if (isTargetUltraAdmin && !isCallerUltraAdmin) {
+        return reply.status(403).send({ error: "Forbidden", message: "Only Ultra Admin can modify Ultra Admin status" });
+      }
+      if (isTargetSuperAdmin && !isCallerUltraAdmin && !currentUser.roles.includes("SUPERADMIN")) {
+        return reply.status(403).send({ error: "Forbidden", message: "Insufficient permissions to modify Super Admin status" });
+      }
+      if (currentUser.id === id && !isActive) {
+        return reply.status(400).send({ error: "Bad Request", message: "Cannot deactivate your own active session account" });
+      }
 
       const user = await prisma.user.update({
         where: { id },
@@ -403,6 +426,17 @@ export async function adminRoutes(fastify: FastifyInstance) {
     { preHandler: [requireRoles("ADMIN", "SUPERADMIN")] },
     async (request, reply) => {
       const { name, email, password, roles } = UserCreateSchema.parse(request.body);
+      const currentUser = request.user as { id: string; email?: string; roles: string[] };
+
+      const isCallerUltraAdmin = currentUser.roles.includes("ULTRA_ADMIN");
+      const isCallerSuperAdmin = currentUser.roles.includes("SUPERADMIN");
+
+      if (roles.includes("ULTRA_ADMIN") && !isCallerUltraAdmin) {
+        return reply.status(403).send({ error: "Forbidden", message: "Only Ultra Admin can create an Ultra Admin account." });
+      }
+      if (roles.includes("SUPERADMIN") && !isCallerUltraAdmin && !isCallerSuperAdmin) {
+        return reply.status(403).send({ error: "Forbidden", message: "Only Super Admin or Ultra Admin can create Super Admin accounts." });
+      }
       
       const passwordHash = await bcrypt.hash(password, 10);
       
@@ -426,6 +460,36 @@ export async function adminRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const { id } = request.params as { id: string };
       const data = UserUpdateSchema.parse(request.body);
+      const currentUser = request.user as { id: string; email?: string; roles: string[] };
+
+      const target = await prisma.user.findUnique({
+        where: { id },
+        select: { id: true, roles: true, email: true }
+      });
+      if (!target) {
+        return reply.status(404).send({ error: "User not found" });
+      }
+
+      const isCallerUltraAdmin = currentUser.roles.includes("ULTRA_ADMIN");
+      const isCallerSuperAdmin = currentUser.roles.includes("SUPERADMIN");
+      const isTargetUltraAdmin = (target.roles as string[]).includes("ULTRA_ADMIN");
+      const isTargetSuperAdmin = (target.roles as string[]).includes("SUPERADMIN");
+
+      if (isTargetUltraAdmin && !isCallerUltraAdmin) {
+        return reply.status(403).send({ error: "Forbidden", message: "Only Ultra Admin can modify an Ultra Admin account." });
+      }
+      if (isTargetSuperAdmin && !isCallerUltraAdmin && !isCallerSuperAdmin) {
+        return reply.status(403).send({ error: "Forbidden", message: "Insufficient permissions to modify Super Admin account." });
+      }
+
+      if (data.roles) {
+        if (data.roles.includes("ULTRA_ADMIN") && !isCallerUltraAdmin) {
+          return reply.status(403).send({ error: "Forbidden", message: "Only Ultra Admin can assign the Ultra Admin role." });
+        }
+        if (data.roles.includes("SUPERADMIN") && !isCallerUltraAdmin && !isCallerSuperAdmin) {
+          return reply.status(403).send({ error: "Forbidden", message: "Only Super Admin or Ultra Admin can assign Super Admin role." });
+        }
+      }
       
       const updateData: any = { ...data };
       if (data.password) {
@@ -439,6 +503,110 @@ export async function adminRoutes(fastify: FastifyInstance) {
       });
       
       return { id: user.id, name: user.name, email: user.email, roles: user.roles };
+    }
+  );
+
+  // DELETE /admin/users/:id - delete user (Ultra Admin can delete Super Admin & all users)
+  fastify.delete(
+    "/users/:id",
+    { preHandler: [requireRoles("ULTRA_ADMIN", "SUPERADMIN")] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const currentUser = request.user as { id: string; email?: string; roles: string[] };
+
+      if (currentUser.id === id) {
+        return reply.status(400).send({ error: "Bad Request", message: "Cannot delete your own active account." });
+      }
+
+      const targetUser = await prisma.user.findUnique({
+        where: { id },
+        select: { id: true, name: true, email: true, roles: true }
+      });
+
+      if (!targetUser) {
+        return reply.status(404).send({ error: "Not Found", message: "User not found." });
+      }
+
+      const isCallerUltraAdmin = currentUser.roles.includes("ULTRA_ADMIN");
+      const isTargetSuperAdmin = (targetUser.roles as string[]).includes("SUPERADMIN");
+      const isTargetUltraAdmin = (targetUser.roles as string[]).includes("ULTRA_ADMIN");
+
+      // Guard: Ultra Admin cannot be deleted by anyone except another Ultra Admin (never self)
+      if (isTargetUltraAdmin && !isCallerUltraAdmin) {
+        return reply.status(403).send({ error: "Forbidden", message: "Only Ultra Admin can delete Ultra Admin accounts." });
+      }
+
+      // Guard: Super Admin can ONLY be deleted by Ultra Admin!
+      if (isTargetSuperAdmin && !isCallerUltraAdmin) {
+        return reply.status(403).send({ error: "Forbidden", message: "Only Ultra Admin has authorization to delete Super Admin accounts." });
+      }
+
+      // Safe transactional deletion
+      await prisma.$transaction(async (tx) => {
+        // 1. Delete refresh tokens & active sessions
+        await tx.refreshToken.deleteMany({ where: { userId: id } });
+
+        // 2. Disassociate optional relationships
+        await tx.customer.updateMany({ where: { assignedUserId: id }, data: { assignedUserId: null } });
+        await tx.lead.updateMany({ where: { assignedUserId: id }, data: { assignedUserId: null } });
+        await tx.lead.updateMany({ where: { convertedByUserId: id }, data: { convertedByUserId: null } });
+        await tx.activity.updateMany({ where: { assignedUserId: id }, data: { assignedUserId: null } });
+        await tx.activity.deleteMany({ where: { createdByUserId: id } });
+        await tx.companyAsset.updateMany({ where: { assignedToUserId: id }, data: { assignedToUserId: null } });
+        await tx.dispatchOrder.updateMany({ where: { assignedUserId: id }, data: { assignedUserId: null } });
+        await tx.quotation.updateMany({ where: { assignedSalesUserId: id }, data: { assignedSalesUserId: null } });
+        await tx.salesOrder.updateMany({ where: { assignedSalesUserId: id }, data: { assignedSalesUserId: null } });
+        await tx.salesOrder.updateMany({ where: { financialClearedById: id }, data: { financialClearedById: null } });
+        await tx.employee.updateMany({ where: { userId: id }, data: { userId: null } });
+        await tx.assetAssignmentHistory.deleteMany({ where: { assignedToId: id } });
+        await tx.stationOperatorAssignment.deleteMany({ where: { operatorId: id } });
+        await tx.workOrderOperator.deleteMany({ where: { userId: id } });
+        await tx.attendanceCorrection.updateMany({ where: { decidedById: id }, data: { decidedById: null } });
+        await tx.leaveRequest.updateMany({ where: { approverId: id }, data: { approverId: null } });
+        await tx.stockTransfer.updateMany({ where: { approvedById: id }, data: { approvedById: null } });
+
+        // 3. Clear audit logs generated by this user to satisfy FK constraint
+        await tx.auditLog.deleteMany({ where: { actorId: id } });
+
+        // 4. Reassign transactional references if user created records
+        await tx.invoiceOrder.updateMany({ where: { createdById: id }, data: { createdById: currentUser.id } });
+        await tx.invoiceOrder.updateMany({ where: { inventoryVerifiedById: id }, data: { inventoryVerifiedById: null } });
+        await tx.invoiceOrder.updateMany({ where: { adminApprovedById: id }, data: { adminApprovedById: null } });
+        await tx.invoiceOrderVerification.deleteMany({ where: { verifiedById: id } });
+        await tx.invoiceOrderApproval.deleteMany({ where: { approvedById: id } });
+        await tx.invoicePayment.deleteMany({ where: { recordedById: id } });
+        await tx.invoiceDocument.deleteMany({ where: { uploadedById: id } });
+        await tx.purchaseRequest.updateMany({ where: { requestedById: id }, data: { requestedById: currentUser.id } });
+        await tx.purchaseRequestApproval.deleteMany({ where: { requestedById: id } });
+        await tx.purchaseRequestApproval.updateMany({ where: { decidedById: id }, data: { decidedById: null } });
+        await tx.purchaseOrder.updateMany({ where: { createdById: id }, data: { createdById: currentUser.id } });
+        await tx.purchaseOrderApproval.deleteMany({ where: { requestedById: id } });
+        await tx.purchaseOrderApproval.updateMany({ where: { decidedById: id }, data: { decidedById: null } });
+
+        // 5. Delete the User record
+        await tx.user.delete({ where: { id } });
+
+        // 6. Record audit log of deletion
+        await tx.auditLog.create({
+          data: {
+            entityType: "USER",
+            entityId: id,
+            actorId: currentUser.id,
+            action: "USER_DELETED",
+            metadata: {
+              deletedUserName: targetUser.name,
+              deletedUserEmail: targetUser.email,
+              deletedUserRoles: targetUser.roles
+            }
+          }
+        });
+      });
+
+      return reply.send({
+        success: true,
+        message: `User ${targetUser.name} (${targetUser.email}) successfully deleted.`,
+        deletedUser: targetUser
+      });
     }
   );
 
@@ -1608,7 +1776,8 @@ export async function adminRoutes(fastify: FastifyInstance) {
               where: { id: existing.id },
               data: {
                 name: data.name.trim(),
-                materialCode: data.materialCode?.trim() || null,
+                materialCode: data.materialCode?.trim() || (existing.materialCode ? existing.materialCode : `MAT-${existing.sku}`),
+                partNumber: data.partNumber?.trim() || (existing.partNumber ? existing.partNumber : existing.sku),
                 category: data.category.trim(),
                 unit: data.unit.trim().toUpperCase(),
                 description: data.description?.trim() || null,
@@ -1652,11 +1821,15 @@ export async function adminRoutes(fastify: FastifyInstance) {
       }
 
       const created = await prisma.$transaction(async (tx) => {
+        const effectiveSku = data.sku.trim();
+        const effectivePartNumber = data.partNumber?.trim() || effectiveSku;
+        const effectiveMaterialCode = data.materialCode?.trim() || `MAT-${effectiveSku}`;
         const material = await tx.material.create({
           data: {
             name: data.name.trim(),
-            materialCode: data.materialCode?.trim() || null,
-            sku: data.sku.trim(),
+            materialCode: effectiveMaterialCode,
+            partNumber: effectivePartNumber,
+            sku: effectiveSku,
             category: data.category.trim(),
             unit: data.unit.trim().toUpperCase(),
             description: data.description?.trim() || null,
@@ -1728,6 +1901,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         const updatePayload: any = {};
         if (data.name !== undefined) updatePayload.name = data.name.trim();
         if (data.materialCode !== undefined) updatePayload.materialCode = data.materialCode?.trim() || null;
+        if (data.partNumber !== undefined) updatePayload.partNumber = data.partNumber?.trim() || null;
         if (data.sku !== undefined) updatePayload.sku = data.sku.trim();
         if (data.category !== undefined) updatePayload.category = data.category.trim();
         if (data.unit !== undefined) updatePayload.unit = data.unit.trim().toUpperCase();

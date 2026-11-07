@@ -1,3 +1,7 @@
+import path from "node:path";
+import dotenv from "dotenv";
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import Fastify, { FastifyInstance } from "fastify";

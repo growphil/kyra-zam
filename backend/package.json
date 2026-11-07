@@ -11,7 +11,9 @@
     "prisma:migrate": "prisma migrate dev",
     "seed": "ts-node prisma/seed.ts",
     "clear:db": "ts-node prisma/clear-db-except-users.ts",
-    "test": "node -r ts-node/register --test src/__tests__/*.test.ts"
+    "test": "node -r ts-node/register --test src/__tests__/*.test.ts",
+    "test:io": "node -r ts-node/register --test src/__tests__/invoice-order-inward-and-stock-posting.test.ts",
+    "test:po": "node -r ts-node/register --test src/__tests__/admin-po-auto-approval-and-inventory-receiving.test.ts"
   },
   "type": "commonjs",
   "dependencies": {

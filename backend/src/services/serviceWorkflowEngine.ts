@@ -35,7 +35,7 @@ export class ServiceWorkflowEngine {
     userRoles: string[],
     previousStatus?: string | null
   ) {
-    const isSuperAdmin = userRoles.includes("SUPERADMIN");
+    const isSuperAdmin = userRoles.includes("SUPERADMIN") || userRoles.includes("ULTRA_ADMIN");
     const isAdmin = userRoles.includes("ADMIN");
     const isInventoryManager = userRoles.includes("INVENTORY_MANAGER");
     const isTechnician = userRoles.includes("ASSEMBLY_TECHNICIAN");

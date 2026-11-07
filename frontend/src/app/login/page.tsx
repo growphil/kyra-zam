@@ -146,6 +146,15 @@ const SEED_ACCOUNTS: SeedAccount[] = [
     icon: ShieldCheck,
   },
   {
+    role: "Ultra Admin",
+    name: "Master Ultra Admin",
+    email: "ultraadmin@kyrazam.com",
+    pass: "UltraAdmin@2025",
+    badge: "ULTRA_ADMIN",
+    category: "Administration",
+    icon: Crown,
+  },
+  {
     role: "Super Admin",
     name: "Arjun Mehta",
     email: "superadmin@kyrazam.com",

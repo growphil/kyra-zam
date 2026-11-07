@@ -57,13 +57,18 @@ async function generatePRNumber(): Promise<string> {
 }
 
 async function generatePONumber(): Promise<string> {
-  const last = await prisma.purchaseOrder.findFirst({ orderBy: { poNumber: 'desc' } });
+  const last = await prisma.purchaseOrder.findFirst({ where: { poNumber: { not: { contains: "TEST" } } }, orderBy: { poNumber: 'desc' } });
   let nextNum = 1;
   if (last) {
     const match = last.poNumber.match(/\d+/);
     if (match) nextNum = parseInt(match[0], 10) + 1;
   }
-  return `PO-${String(nextNum).padStart(6, '0')}`;
+  let candidate = `PO-${String(nextNum).padStart(6, '0')}`;
+  while (await prisma.purchaseOrder.findUnique({ where: { poNumber: candidate } })) {
+    nextNum++;
+    candidate = `PO-${String(nextNum).padStart(6, '0')}`;
+  }
+  return candidate;
 }
 
 async function generateGRNNumber(): Promise<string> {
@@ -94,54 +99,128 @@ export function getCategoryPrefix(category: string): string {
   return alphanumeric.slice(0, 4) || "PRD";
 }
 
-// Generate CAT-SECNO part number (checking existing products and historical audit logs to prevent sequence reuse)
+// Generate CAT-SECNO part number concurrency-safe via atomic CategorySequence
 async function generateCategoryPartNumber(category: string, tx?: any): Promise<string> {
   const db = tx || prisma;
-  const prefix = getCategoryPrefix(category);
-  const products = await db.product.findMany({
-    where: {
-      partNumber: { startsWith: `${prefix}-` }
-    },
-    select: { partNumber: true }
+  const normCategory = (category || "OTHER").trim().toUpperCase();
+  const prefix = getCategoryPrefix(normCategory);
+
+  // 1. Resolve or initialize CategorySequence
+  let seqRecord = await db.categorySequence.findUnique({
+    where: { category: normCategory }
   });
 
-  let maxNum = 0;
-  for (const p of products) {
-    const match = p.partNumber.match(new RegExp(`^${prefix}-(\\d+)`, "i"));
-    if (match) {
-      const num = parseInt(match[1], 10);
-      if (!isNaN(num) && num > maxNum) {
-        maxNum = num;
+  if (!seqRecord) {
+    // Scan existing Product, ComponentMaster, and Material to initialize maxNum safely
+    const [products, components, materials] = await Promise.all([
+      db.product.findMany({
+        where: { partNumber: { startsWith: `${prefix}-` } },
+        select: { partNumber: true }
+      }),
+      db.componentMaster.findMany({
+        where: { partNumber: { startsWith: `${prefix}-` } },
+        select: { partNumber: true }
+      }),
+      db.material.findMany({
+        where: {
+          OR: [
+            { partNumber: { startsWith: `${prefix}-` } },
+            { sku: { startsWith: `${prefix}-` } }
+          ]
+        },
+        select: { partNumber: true, sku: true }
+      })
+    ]);
+
+    let maxNum = 0;
+    const candidates = [
+      ...products.map((p: any) => p.partNumber),
+      ...components.map((c: any) => c.partNumber),
+      ...materials.map((m: any) => m.partNumber || m.sku)
+    ];
+
+    for (const p of candidates) {
+      if (!p) continue;
+      const match = p.match(new RegExp(`^${prefix}-(\\d+)`, "i"));
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
       }
     }
-  }
 
-  // Also inspect historical audit logs so deleted product numbers are never reused
-  try {
-    const auditLogs = await db.auditLog.findMany({
-      where: {
-        entityType: "product_master"
-      },
-      select: { metadata: true }
-    });
-    for (const log of auditLogs) {
-      const meta = log.metadata as any;
-      if (meta?.partNumber && typeof meta.partNumber === "string") {
-        const match = meta.partNumber.match(new RegExp(`^${prefix}-(\\d+)`, "i"));
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (!isNaN(num) && num > maxNum) {
-            maxNum = num;
+    // Also inspect historical audit logs so deleted product numbers are never reused
+    try {
+      const auditLogs = await db.auditLog.findMany({
+        where: { entityType: "product_master" },
+        select: { metadata: true }
+      });
+      for (const log of auditLogs) {
+        const meta = log.metadata as any;
+        if (meta?.partNumber && typeof meta.partNumber === "string") {
+          const match = meta.partNumber.match(new RegExp(`^${prefix}-(\\d+)`, "i"));
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (!isNaN(num) && num > maxNum) maxNum = num;
           }
         }
       }
+    } catch (e) {
+      // Non-blocking fallback
     }
-  } catch (e) {
-    // Non-blocking fallback
+
+    try {
+      seqRecord = await db.categorySequence.create({
+        data: {
+          category: normCategory,
+          prefix,
+          nextSequence: maxNum + 1
+        }
+      });
+    } catch (e: any) {
+      // Parallel request might have created it
+      seqRecord = await db.categorySequence.findUnique({
+        where: { category: normCategory }
+      });
+    }
   }
 
-  const nextNum = maxNum + 1;
-  return `${prefix}-${String(nextNum).padStart(3, "0")}`;
+  // 2. Atomically increment sequence
+  let allocatedNum = 1;
+  if (seqRecord) {
+    const updated = await db.categorySequence.update({
+      where: { category: normCategory },
+      data: { nextSequence: { increment: 1 } },
+      select: { nextSequence: true, prefix: true }
+    });
+    allocatedNum = updated.nextSequence - 1;
+  }
+
+  let allocatedPartNumber = `${prefix}-${String(allocatedNum).padStart(3, "0")}`;
+
+  // Collision safety loop
+  let collision = await db.product.findFirst({
+    where: { partNumber: allocatedPartNumber },
+    select: { id: true }
+  });
+  while (collision) {
+    if (seqRecord) {
+      const nextUp = await db.categorySequence.update({
+        where: { category: normCategory },
+        data: { nextSequence: { increment: 1 } },
+        select: { nextSequence: true }
+      });
+      allocatedNum = nextUp.nextSequence - 1;
+    } else {
+      allocatedNum++;
+    }
+    allocatedPartNumber = `${prefix}-${String(allocatedNum).padStart(3, "0")}`;
+    collision = await db.product.findFirst({
+      where: { partNumber: allocatedPartNumber },
+      select: { id: true }
+    });
+  }
+
+  return allocatedPartNumber;
 }
 
 // Helper to normalize 3-letter alphanumeric code (padded with X if needed)
@@ -268,7 +347,9 @@ export async function procurementRoutes(fastify: FastifyInstance) {
     if (search) {
       where.OR = [
         { prNumber: { contains: search, mode: "insensitive" } },
-        { reason: { contains: search, mode: "insensitive" } }
+        { reason: { contains: search, mode: "insensitive" } },
+        { items: { some: { material: { sku: { contains: search, mode: "insensitive" } } } } },
+        { items: { some: { material: { name: { contains: search, mode: "insensitive" } } } } }
       ];
     }
     if (status) where.status = status;
@@ -363,6 +444,148 @@ export async function procurementRoutes(fastify: FastifyInstance) {
     return pr;
   });
 
+  // PUT /crm/procurement/purchase-requests/:id (Edit Draft / Correction Required PR)
+  fastify.put("/purchase-requests/:id", purchasePreHandler, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const data = PurchaseRequestCreateSchema.parse(request.body);
+    const actor = request.user as { id: string };
+    const userRoles = (request.user as any)?.roles || [];
+
+    const pr = await prisma.purchaseRequest.findUnique({ where: { id } });
+    if (!pr) return reply.status(404).send({ error: "Purchase Request not found" });
+
+    if (pr.status !== "DRAFT" && pr.status !== "REJECTED") {
+      return reply.status(400).send({ 
+        error: `Cannot edit Purchase Request in status "${pr.status}". Only Draft or Correction Required requests can be edited.` 
+      });
+    }
+
+    const isCreator = pr.requestedById === actor.id;
+    const isAdmin = userRoles.includes("ADMIN") || userRoles.includes("SUPERADMIN");
+    if (!isCreator && !isAdmin) {
+      return reply.status(403).send({ error: "Forbidden: You can only edit your own draft requests." });
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.purchaseRequestItem.deleteMany({ where: { purchaseRequestId: id } });
+
+      const doc = await tx.purchaseRequest.update({
+        where: { id },
+        data: {
+          source: data.source,
+          sourceReferenceId: data.sourceReferenceId,
+          priority: data.priority,
+          requiredDate: new Date(data.requiredDate),
+          reason: data.reason,
+          notes: data.notes
+        }
+      });
+
+      for (const item of data.items) {
+        await tx.purchaseRequestItem.create({
+          data: {
+            purchaseRequestId: id,
+            materialId: item.materialId,
+            requestedQuantity: item.requestedQuantity,
+            requiredDate: new Date(item.requiredDate),
+            specification: item.specification,
+            notes: item.notes
+          }
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          entityType: "purchase-request",
+          entityId: id,
+          actorId: actor.id,
+          action: "PURCHASE_REQUEST_UPDATED",
+          metadata: { itemCount: data.items.length }
+        }
+      });
+
+      return doc;
+    });
+
+    return updated;
+  });
+
+  // PUT /crm/procurement/purchase-requests/:id/request-correction (Admin Return for Correction)
+  fastify.put("/purchase-requests/:id/request-correction", purchasePreHandler, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const { comments, reason } = (request.body as { comments?: string; reason?: string }) || {};
+    const actor = request.user as { id: string };
+    const userRoles = (request.user as any)?.roles || [];
+
+    if (!userRoles.includes("ADMIN") && !userRoles.includes("SUPERADMIN")) {
+      return reply.status(403).send({ error: "Forbidden: Only authorized Administrators can return Purchase Requests for correction." });
+    }
+
+    const pr = await prisma.purchaseRequest.findUnique({ where: { id } });
+    if (!pr) return reply.status(404).send({ error: "Purchase Request not found" });
+
+    if (pr.requestedById === actor.id && !userRoles.includes("SUPERADMIN")) {
+      return reply.status(403).send({ error: "Segregation of duties violation: The creator cannot request correction on their own Purchase Request." });
+    }
+
+    if (pr.status !== "PENDING_APPROVAL") {
+      return reply.status(400).send({ error: `Cannot request correction for PR in status ${pr.status}` });
+    }
+
+    const remarks = comments || reason || "Correction requested by administrator";
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const doc = await tx.purchaseRequest.update({
+        where: { id },
+        data: {
+          status: "DRAFT",
+          notes: `[CORRECTION_REQUIRED]: ${remarks}`
+        }
+      });
+
+      const pending = await tx.purchaseRequestApproval.findFirst({
+        where: { purchaseRequestId: id, status: "PENDING" }
+      });
+      if (pending) {
+        await tx.purchaseRequestApproval.update({
+          where: { id: pending.id },
+          data: {
+            status: "CORRECTION_REQUESTED",
+            decidedById: actor.id,
+            comments: remarks
+          }
+        });
+      } else {
+        await tx.purchaseRequestApproval.create({
+          data: {
+            purchaseRequestId: id,
+            requestedById: pr.requestedById,
+            decidedById: actor.id,
+            status: "CORRECTION_REQUESTED",
+            comments: remarks
+          }
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          entityType: "purchase-request",
+          entityId: id,
+          actorId: actor.id,
+          action: "PURCHASE_REQUEST_CORRECTION_REQUESTED",
+          prevStatus: "PENDING_APPROVAL",
+          newStatus: "CORRECTION_REQUIRED",
+          metadata: { remarks }
+        }
+      });
+
+      return doc;
+    });
+
+    await triggerProcurementNotification(pr.requestedById, null, `Your PR ${pr.prNumber} was returned for correction: ${remarks}`);
+    return updated;
+  });
+
   // PUT /crm/procurement/purchase-requests/:id/submit
   fastify.put("/purchase-requests/:id/submit", purchasePreHandler, async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -410,15 +633,18 @@ export async function procurementRoutes(fastify: FastifyInstance) {
   // PUT /crm/procurement/purchase-requests/:id/approve
   fastify.put("/purchase-requests/:id/approve", purchasePreHandler, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const { comments } = request.body as { comments?: string };
+    const { comments } = (request.body as { comments?: string }) || {};
     const actor = request.user as { id: string };
 
     const pr = await prisma.purchaseRequest.findUnique({ where: { id } });
     if (!pr) return reply.status(404).send({ error: "Purchase Request not found" });
 
     const userRoles = (request.user as any)?.roles || [];
-    if (pr.requestedById === actor.id && !userRoles.includes("ADMIN") && !userRoles.includes("SUPERADMIN")) {
-      return reply.status(403).send({ error: "Access denied: cannot approve your own Purchase Request" });
+    if (!userRoles.includes("ADMIN") && !userRoles.includes("SUPERADMIN")) {
+      return reply.status(403).send({ error: "Forbidden: Only authorized Administrators can approve Purchase Requests." });
+    }
+    if (pr.requestedById === actor.id && !userRoles.includes("SUPERADMIN")) {
+      return reply.status(403).send({ error: "Segregation of duties violation: The creator cannot approve their own Purchase Request. Another Admin or SuperAdmin must review and authorize." });
     }
 
     if (pr.status !== "PENDING_APPROVAL") {
@@ -475,8 +701,11 @@ export async function procurementRoutes(fastify: FastifyInstance) {
     if (!pr) return reply.status(404).send({ error: "Purchase Request not found" });
 
     const userRoles = (request.user as any)?.roles || [];
-    if (pr.requestedById === actor.id && !userRoles.includes("ADMIN") && !userRoles.includes("SUPERADMIN")) {
-      return reply.status(403).send({ error: "Access denied: cannot reject your own Purchase Request" });
+    if (!userRoles.includes("ADMIN") && !userRoles.includes("SUPERADMIN")) {
+      return reply.status(403).send({ error: "Forbidden: Only authorized Administrators can reject Purchase Requests." });
+    }
+    if (pr.requestedById === actor.id && !userRoles.includes("SUPERADMIN")) {
+      return reply.status(403).send({ error: "Segregation of duties violation: The creator cannot reject their own Purchase Request." });
     }
 
     if (pr.status !== "PENDING_APPROVAL") {
@@ -831,14 +1060,40 @@ export async function procurementRoutes(fastify: FastifyInstance) {
     const data = ProductCreateSchema.parse(request.body);
     const actor = request.user as { id: string };
 
-    // Auto-generate CAT-SECNO part number if not provided
-    const normalizedPartNumber = data.partNumber && data.partNumber.trim()
-      ? data.partNumber.trim().toUpperCase()
-      : await generateCategoryPartNumber(data.category);
-
     const normalizedBrand = data.brand.trim().toUpperCase();
 
-    // 1. Ensure Brand master record is resolved with persistent brandId
+    // 1. Resolve canonical component and Part Number
+    let normalizedPartNumber = data.partNumber ? data.partNumber.trim().toUpperCase() : "";
+
+    // If componentId is provided, retrieve its partNumber
+    if (!normalizedPartNumber && data.componentId) {
+      const comp = await prisma.componentMaster.findUnique({
+        where: { id: data.componentId }
+      });
+      if (comp) {
+        normalizedPartNumber = comp.partNumber;
+      }
+    }
+
+    // If partNumber was not provided, check if an existing ComponentMaster or Product matches manufacturerPartNumber
+    if (!normalizedPartNumber && data.manufacturerPartNumber?.trim()) {
+      const matchMpn = await prisma.componentMaster.findFirst({
+        where: {
+          category: { equals: data.category.trim(), mode: "insensitive" },
+          manufacturerPartNumber: { equals: data.manufacturerPartNumber.trim(), mode: "insensitive" }
+        }
+      });
+      if (matchMpn) {
+        normalizedPartNumber = matchMpn.partNumber;
+      }
+    }
+
+    // If still no partNumber, allocate next category sequence
+    if (!normalizedPartNumber) {
+      normalizedPartNumber = await generateCategoryPartNumber(data.category);
+    }
+
+    // 2. Ensure Brand master record is resolved with persistent brandId
     let brandRecord = null;
     if (data.brandId) {
       brandRecord = await prisma.brand.findUnique({ where: { id: data.brandId } });
@@ -890,24 +1145,42 @@ export async function procurementRoutes(fastify: FastifyInstance) {
             { brand: { equals: brandRecord!.name, mode: "insensitive" } }
           ]
         },
-        include: { material: true, brandRef: true }
+        include: { material: true, brandRef: true, component: true }
       });
 
-    // 2. Duplicate protection: Same Part Number + Same BrandId -> Return or reuse existing product
+    // 3. Duplicate protection: Same Part Number + Same BrandId -> Return or reuse existing product
     const existing = await findExistingIdentity();
 
     if (existing) {
       // Heal missing brandId or materialId if needed
-      if (!existing.brandId || !existing.materialId) {
+      if (!existing.brandId || !existing.materialId || !existing.componentId) {
         const updateData: any = {};
         if (!existing.brandId) updateData.brandId = brandRecord.id;
         if (!existing.materialId && safeMaterialId) updateData.materialId = safeMaterialId;
+
+        // Ensure component master link is healed
+        if (!existing.componentId) {
+          let comp = await prisma.componentMaster.findUnique({ where: { partNumber: normalizedPartNumber } });
+          if (!comp) {
+            comp = await prisma.componentMaster.create({
+              data: {
+                partNumber: normalizedPartNumber,
+                category: data.category.trim(),
+                name: existing.name,
+                manufacturerPartNumber: existing.manufacturerPartNumber || null,
+                unit: existing.unit,
+                technicalSpecs: existing.technicalSpecs || null
+              }
+            });
+          }
+          updateData.componentId = comp.id;
+        }
 
         if (Object.keys(updateData).length > 0) {
           const healed = await prisma.product.update({
             where: { id: existing.id },
             data: updateData,
-            include: { material: true, brandRef: true }
+            include: { material: true, brandRef: true, component: true }
           });
           return reply.status(200).send({
             product: healed,
@@ -924,7 +1197,7 @@ export async function procurementRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // 3. Concurrency-Safe Brand Sequence Increment, UIN Allocation & Material Synchronization in Transaction
+    // 4. Concurrency-Safe Brand Sequence Increment, UIN Allocation & Material Synchronization in Transaction
     let result: Awaited<ReturnType<typeof findExistingIdentity>> & {};
     try {
     result = await prisma.$transaction(async (tx) => {
@@ -959,7 +1232,7 @@ export async function procurementRoutes(fastify: FastifyInstance) {
         existsUin = await tx.product.findUnique({ where: { uin } });
       }
 
-      // 4. Synchronize Factory Material record without overwriting other brands
+      // 5. Synchronize Factory Material record without overwriting other brands
       let materialRecord = null;
       if (safeMaterialId) {
         materialRecord = await tx.material.findUnique({ where: { id: safeMaterialId } });
@@ -989,9 +1262,21 @@ export async function procurementRoutes(fastify: FastifyInstance) {
             });
             if (existingBrandMaterial) {
               materialRecord = existingBrandMaterial;
+              if (!materialRecord.partNumber) {
+                materialRecord = await tx.material.update({
+                  where: { id: materialRecord.id },
+                  data: { partNumber: normalizedPartNumber, materialCode: `MAT-${targetMaterialSku}` }
+                });
+              }
             }
           } else {
             materialRecord = existingBaseMaterial;
+            if (!materialRecord.partNumber) {
+              materialRecord = await tx.material.update({
+                where: { id: materialRecord.id },
+                data: { partNumber: normalizedPartNumber, materialCode: `MAT-${materialRecord.sku}` }
+              });
+            }
           }
         }
 
@@ -1001,6 +1286,7 @@ export async function procurementRoutes(fastify: FastifyInstance) {
             data: {
               sku: targetMaterialSku,
               materialCode: `MAT-${targetMaterialSku}`,
+              partNumber: normalizedPartNumber,
               name: targetMaterialSku === normalizedPartNumber 
                 ? data.name.trim() 
                 : `${data.name.trim()} (${lockedBrand.name})`,
@@ -1022,9 +1308,10 @@ export async function procurementRoutes(fastify: FastifyInstance) {
               action: "FACTORY_MATERIAL_AUTO_CREATED_FROM_PRODUCT",
               metadata: {
                 sku: materialRecord.sku,
+                materialCode: materialRecord.materialCode,
+                partNumber: normalizedPartNumber,
                 name: materialRecord.name,
                 category: materialRecord.category,
-                partNumber: normalizedPartNumber,
                 brand: lockedBrand.name,
                 brandId: lockedBrand.id,
                 source: "PRODUCT_MASTER_AUTO_SYNC"
@@ -1034,7 +1321,25 @@ export async function procurementRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // 5. Create new Product identity with persistent brandId and unique UIN
+      // 6. Ensure canonical ComponentMaster record exists
+      let componentRecord = await tx.componentMaster.findUnique({
+        where: { partNumber: normalizedPartNumber }
+      });
+      if (!componentRecord) {
+        componentRecord = await tx.componentMaster.create({
+          data: {
+            partNumber: normalizedPartNumber,
+            category: data.category.trim(),
+            name: data.name.trim(),
+            manufacturerPartNumber: data.manufacturerPartNumber?.trim() || null,
+            unit: data.unit?.trim().toUpperCase() || "PCS",
+            technicalSpecs: data.technicalSpecs?.trim() || null,
+            description: data.description?.trim() || null
+          }
+        });
+      }
+
+      // 7. Create new Product identity with persistent brandId, canonical partNumber and unique UIN
       const created = await tx.product.create({
         data: {
           uin,
@@ -1044,6 +1349,7 @@ export async function procurementRoutes(fastify: FastifyInstance) {
           brand: lockedBrand.name,
           brandId: lockedBrand.id,
           category: data.category.trim(),
+          componentId: componentRecord.id,
           materialId: materialRecord.id,
           technicalSpecs: data.technicalSpecs?.trim() || null,
           unit: data.unit?.trim().toUpperCase() || "PCS",
@@ -1051,7 +1357,7 @@ export async function procurementRoutes(fastify: FastifyInstance) {
           imageUrl: data.imageUrl?.trim() || null,
           isActive: data.isActive ?? true
         },
-        include: { material: true, brandRef: true }
+        include: { material: true, brandRef: true, component: true }
       });
 
       await tx.auditLog.create({
@@ -1064,6 +1370,7 @@ export async function procurementRoutes(fastify: FastifyInstance) {
             uin: created.uin,
             name: created.name,
             partNumber: created.partNumber,
+            componentId: created.componentId,
             manufacturerPartNumber: created.manufacturerPartNumber,
             brand: created.brand,
             brandId: created.brandId,
@@ -1383,11 +1690,14 @@ export async function procurementRoutes(fastify: FastifyInstance) {
       include: { material: true, brandRef: true }
     });
 
+    const suggestedPartNumber = exactMatches[0]?.partNumber || crossBrandMatches[0]?.partNumber || null;
+
     return {
       hasExactMatch: exactMatches.length > 0,
       exactMatches,
       hasCrossBrandMatch: crossBrandMatches.length > 0,
       crossBrandMatches,
+      suggestedPartNumber,
       matches: exactMatches.length > 0 ? exactMatches : crossBrandMatches
     };
   });
@@ -1521,6 +1831,32 @@ export async function procurementRoutes(fastify: FastifyInstance) {
     // Verify vendor
     const vendor = await prisma.vendor.findUnique({ where: { id: data.vendorId } });
     if (!vendor) return reply.status(400).send({ error: "Selected Vendor not found in vendor registry." });
+
+    // Verify referenced Purchase Request if present
+    if (data.purchaseRequestId) {
+      const pr = await prisma.purchaseRequest.findUnique({
+        where: { id: data.purchaseRequestId },
+        include: { items: true }
+      });
+      if (!pr) return reply.status(404).send({ error: "Referenced Purchase Request not found." });
+      if (pr.status !== "APPROVED") {
+        return reply.status(400).send({
+          error: `Cannot generate Purchase Order from Purchase Request in status "${pr.status}". PR must be in APPROVED status.`
+        });
+      }
+
+      // Quantity validation: PO quantities cannot silently exceed approved PR quantities
+      for (const poItem of data.items) {
+        if (poItem.materialId) {
+          const prItem = pr.items.find((it) => it.materialId === poItem.materialId);
+          if (prItem && poItem.quantityOrdered > prItem.requestedQuantity) {
+            return reply.status(400).send({
+              error: `Ordered quantity (${poItem.quantityOrdered}) exceeds approved PR quantity (${prItem.requestedQuantity}) for material.`
+            });
+          }
+        }
+      }
+    }
 
     // Financial arithmetic on server
     let subtotal = 0;
@@ -2753,44 +3089,48 @@ export async function procurementRoutes(fastify: FastifyInstance) {
             });
           }
 
-          // Update Purchase Order Items pending totals
-          const poItem = await tx.purchaseOrderItem.findFirst({
-            where: {
-              purchaseOrderId: grn.purchaseOrderId,
-              OR: [
-                ...(item.productId ? [{ productId: item.productId }] : []),
-                ...(item.materialId ? [{ materialId: item.materialId }] : [])
-              ]
-            }
-          });
-
-          if (poItem) {
-            const processed = poItem.quantityReceived + acceptedQty;
-            const pending = Math.max(0, poItem.quantityOrdered - processed - poItem.quantityCancelled);
-            await tx.purchaseOrderItem.update({
-              where: { id: poItem.id },
-              data: {
-                quantityReceived: processed,
-                quantityPending: pending
+          // Update Purchase Order Items pending totals if linked to PO
+          if (grn.purchaseOrderId) {
+            const poItem = await tx.purchaseOrderItem.findFirst({
+              where: {
+                purchaseOrderId: grn.purchaseOrderId,
+                OR: [
+                  ...(item.productId ? [{ productId: item.productId }] : []),
+                  ...(item.materialId ? [{ materialId: item.materialId }] : [])
+                ]
               }
             });
+
+            if (poItem) {
+              const processed = poItem.quantityReceived + acceptedQty;
+              const pending = Math.max(0, poItem.quantityOrdered - processed - poItem.quantityCancelled);
+              await tx.purchaseOrderItem.update({
+                where: { id: poItem.id },
+                data: {
+                  quantityReceived: processed,
+                  quantityPending: pending
+                }
+              });
+            }
           }
         }
 
-        // 2. Adjust Purchase Order status
-        const allPOItems = await tx.purchaseOrderItem.findMany({
-          where: { purchaseOrderId: grn.purchaseOrderId }
-        });
-        const poAllPending = allPOItems.reduce((acc, x) => acc + x.quantityPending, 0);
-        const poAllReceived = allPOItems.reduce((acc, x) => acc + x.quantityReceived, 0);
+        // 2. Adjust Purchase Order status if linked to PO
+        if (grn.purchaseOrderId) {
+          const allPOItems = await tx.purchaseOrderItem.findMany({
+            where: { purchaseOrderId: grn.purchaseOrderId }
+          });
+          const poAllPending = allPOItems.reduce((acc, x) => acc + x.quantityPending, 0);
+          const poAllReceived = allPOItems.reduce((acc, x) => acc + x.quantityReceived, 0);
 
-        let poStatus = "PARTIALLY_RECEIVED";
-        if (poAllPending === 0) poStatus = "RECEIVED";
+          let poStatus = "PARTIALLY_RECEIVED";
+          if (poAllPending === 0) poStatus = "RECEIVED";
 
-        await tx.purchaseOrder.update({
-          where: { id: grn.purchaseOrderId },
-          data: { status: poStatus as any }
-        });
+          await tx.purchaseOrder.update({
+            where: { id: grn.purchaseOrderId },
+            data: { status: poStatus as any }
+          });
+        }
 
         // 3. Mark GRN as STOCKED
         const finalizedGRN = await tx.goodsReceipt.update({
@@ -2909,7 +3249,7 @@ export async function procurementRoutes(fastify: FastifyInstance) {
     if (status) {
       where.status = status;
     } else {
-      where.status = { in: ["APPROVED", "SENT", "RECEIVED"] };
+      where.status = { in: ["APPROVED", "SENT", "PARTIALLY_RECEIVED", "RECEIVED"] };
     }
 
     if (search) {
@@ -3115,7 +3455,7 @@ export async function procurementRoutes(fastify: FastifyInstance) {
           throw err;
         }
 
-        const RECEIVABLE = ["APPROVED", "SENT"];
+        const RECEIVABLE = ["APPROVED", "SENT", "PARTIALLY_RECEIVED"];
         if (!RECEIVABLE.includes(po.status)) {
           const err: any = new Error(`Purchase Order cannot be received in status "${po.status}".`);
           err.statusCode = 400;
@@ -3204,7 +3544,8 @@ export async function procurementRoutes(fastify: FastifyInstance) {
           return { success: true, isDraft: true, grnNumber, message: "Receiving draft saved successfully without posting inventory." };
         }
 
-        // Server-side outstanding quantity calculation & full receipt validation
+        // Server-side outstanding quantity calculation & partial/full receipt validation
+        let totalEnteredAll = 0;
         for (const item of data.items) {
           const poItem = po.items.find(i => i.id === item.poItemId);
           if (!poItem) {
@@ -3216,14 +3557,28 @@ export async function procurementRoutes(fastify: FastifyInstance) {
           const outstanding = poItem.quantityOrdered - poItem.quantityReceived - poItem.quantityCancelled;
           const entered = item.passedQty + item.defectiveQty;
 
-          if (entered !== outstanding) {
+          if (entered < 0) {
+            const err: any = new Error(`Received quantity cannot be negative.`);
+            err.statusCode = 400;
+            throw err;
+          }
+
+          if (entered > outstanding) {
             const productName = poItem.product?.name || poItem.material?.name || poItem.description;
             const err: any = new Error(
-              `Quantity mismatch for "${productName}". Full receipt required — entered count does not match the authorized purchase order.`
+              `Quantity mismatch for "${productName}". Received quantity (${entered}) exceeds authorized outstanding quantity (${outstanding}).`
             );
             err.statusCode = 400;
             throw err;
           }
+
+          totalEnteredAll += entered;
+        }
+
+        if (totalEnteredAll <= 0) {
+          const err: any = new Error("At least one line item must have a received quantity greater than zero.");
+          err.statusCode = 400;
+          throw err;
         }
 
         // Warehouse resolution
@@ -3356,11 +3711,21 @@ export async function procurementRoutes(fastify: FastifyInstance) {
           }
         }
 
-        // PO status update: Full receipt required, transitions directly to RECEIVED
+        // PO status update: Check if all items across the PO are fully received
+        const updatedPoItems = await tx.purchaseOrderItem.findMany({
+          where: { purchaseOrderId: po.id }
+        });
+        const isFullyCompleted = updatedPoItems.every(
+          (p) => (p.quantityReceived + p.quantityCancelled) >= p.quantityOrdered
+        );
+        const nextPOStatus = isFullyCompleted ? "RECEIVED" : "PARTIALLY_RECEIVED";
+
         await tx.purchaseOrder.update({
           where: { id: po.id },
-          data: { status: "RECEIVED" as any }
+          data: { status: nextPOStatus as any }
         });
+
+        const totalPendingRemaining = updatedPoItems.reduce((acc, p) => acc + p.quantityPending, 0);
 
         // Audit Trail
         await tx.auditLog.create({
@@ -3368,14 +3733,14 @@ export async function procurementRoutes(fastify: FastifyInstance) {
             entityType: "purchase_order",
             entityId: po.id,
             actorId: actor.id,
-            action: "GOODS_RECEIPT_BLIND_RECEIVED",
+            action: isFullyCompleted ? "GOODS_RECEIPT_BLIND_RECEIVED" : "GOODS_RECEIPT_PARTIAL_RECEIVED",
             prevStatus: po.status,
-            newStatus: "RECEIVED",
+            newStatus: nextPOStatus,
             metadata: {
               grnNumber,
               grnId: grn.id,
               grnStatus,
-              remainingPending: 0,
+              remainingPending: totalPendingRemaining,
               supplierInvoiceNumber: data.supplierInvoiceNumber || null
             }
           }
@@ -3386,9 +3751,9 @@ export async function procurementRoutes(fastify: FastifyInstance) {
           grnNumber,
           grnId: grn.id,
           grnStatus,
-          poStatus: "RECEIVED",
-          remainingPending: 0,
-          message: "Purchase Order completely received."
+          poStatus: nextPOStatus,
+          remainingPending: totalPendingRemaining,
+          message: isFullyCompleted ? "Purchase Order completely received." : "Partial delivery received successfully."
         };
       });
 

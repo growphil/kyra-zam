@@ -2071,22 +2071,23 @@ export default function FactorySettingsTab() {
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="bg-slate-50/80 dark:bg-white border-b border-slate-200 dark:border-slate-800">
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91] w-14 text-center">S.No</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91] w-12 text-center">S.No</th>
                     <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Material Identity</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Code</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Part Number / SKU</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Category</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Type</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Unit</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Base Cost</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Status</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91] text-right">Actions</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Material Code</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Part Number</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Material SKU</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Category</th>
+                    <th className="px-3 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Type</th>
+                    <th className="px-3 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Unit</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Base Cost</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Status</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91] text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {filteredMaterials.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-10 text-center text-[#526B91] text-xs">
+                      <td colSpan={11} className="px-6 py-10 text-center text-[#526B91] text-xs">
                         {materialSearch || categoryFilter !== "ALL" || typeFilter !== "ALL"
                           ? "No materials match the active search, category, or type filter." 
                           : "No material part numbers configured. Click \"Add Material\" to register your first SKU."}
@@ -2104,10 +2105,15 @@ export default function FactorySettingsTab() {
                             <p className="text-[11px] text-[#526B91] truncate max-w-xs">{mat.description}</p>
                           )}
                         </td>
-                        <td className="px-5 py-3 font-mono text-[#526B91] dark:text-[#0B2148]">
-                          {mat.materialCode || "—"}
+                        <td className="px-4 py-3 font-mono text-[11px] text-[#526B91] dark:text-[#0B2148]">
+                          {mat.materialCode || (mat.sku ? `MAT-${mat.sku}` : "—")}
                         </td>
-                        <td className="px-5 py-3 font-mono font-semibold text-blue-600 dark:text-blue-400">
+                        <td className="px-4 py-3">
+                          <span className="font-mono font-bold text-xs text-[#0878F9] bg-[#EAF5FF] px-2 py-0.5 rounded border border-[#BFDBFE]">
+                            {mat.partNumber || mat.sku?.replace(/^[A-Z0-9]+-(?=[A-Z]+-\d+)/, "").replace(/^MAT-[A-Z]+-/, "") || mat.sku}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-mono font-semibold text-xs text-slate-800 dark:text-blue-400">
                           {mat.sku}
                         </td>
                         <td className="px-5 py-3">

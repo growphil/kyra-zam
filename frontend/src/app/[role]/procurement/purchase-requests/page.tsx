@@ -133,7 +133,7 @@ export default function PurchaseRequestsPage() {
       {/* Header */}
       <PageHeader
         title="Purchase Requests"
-        subtitle={`Active Indents: ${totalCount} Registered Requests`}
+        subtitle={`Active Indents: ${totalCount} Registered Requests • Tracked Strictly by Internal Part Number (P/N)`}
         icon={<ClipboardList className="w-5 h-5 text-[#0878F9]" />}
         actions={
           <button 
@@ -168,7 +168,7 @@ export default function PurchaseRequestsPage() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#526B91]" />
           <input 
             type="text" 
-            placeholder="Search requests (Number)..."
+            placeholder="Search by PR #, Part Number (e.g. BMS-001), or component name..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-lg pl-10 pr-3.5 py-2 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-[#0878F9]"
@@ -216,6 +216,7 @@ export default function PurchaseRequestsPage() {
               <thead>
                 <tr className="bg-[#F4F9FF] border-b border-[#D8E8FA] text-[11px] uppercase font-bold text-[#526B91] tracking-wider">
                   <th className="px-4 py-3">PR Number</th>
+                  <th className="px-4 py-3">Requested Part Numbers & Items</th>
                   <th className="px-4 py-3">Source</th>
                   <th className="px-4 py-3">Requested By</th>
                   <th className="px-4 py-3">Priority</th>
@@ -225,49 +226,76 @@ export default function PurchaseRequestsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E8F1FC] text-xs text-[#0B2148]">
-                {prs.map((pr: any) => (
-                  <tr key={pr.id} className="hover:bg-[#F4F9FF]/80 transition-colors">
-                    <td className="px-4 py-3 font-mono font-bold text-[#0B2148] text-xs">{pr.prNumber}</td>
-                    <td className="px-4 py-3">
-                      <span className="px-2 py-0.5 bg-[#F4F9FF] border border-[#D8E8FA] rounded text-[10px] font-bold text-[#526B91]">
-                        {pr.source}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[#0B2148] font-semibold">{pr.requestedBy?.name}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center ${
-                        pr.priority === "URGENT" ? "bg-[#FEE2E2] text-[#991B1B] border border-[#FECACA]" :
-                        pr.priority === "HIGH" ? "bg-[#FFEDD5] text-[#9A3412] border border-[#FED7AA]" :
-                        pr.priority === "NORMAL" ? "bg-[#DBEAFE] text-[#1D4ED8] border border-[#BFDBFE]" :
-                        "bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]"
-                      }`}>
-                        {pr.priority}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[#526B91] font-medium">
-                      {new Date(pr.requiredDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center ${
-                        pr.status === "COMPLETED" || pr.status === "APPROVED" ? "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]" :
-                        pr.status === "REJECTED" || pr.status === "CANCELLED" ? "bg-[#FEE2E2] text-[#991B1B] border border-[#FECACA]" :
-                        pr.status === "PENDING_APPROVAL" ? "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]" :
-                        "bg-[#DBEAFE] text-[#1D4ED8] border border-[#BFDBFE]"
-                      }`}>
-                        {pr.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <a 
-                        href={`/${roleSlug}/procurement/purchase-requests/${pr.id}`} 
-                        className="inline-flex items-center gap-1 text-xs font-bold text-[#0878F9] hover:underline"
-                      >
-                        Details
-                        <ArrowUpRight className="w-3.5 h-3.5" />
-                      </a>
-                    </td>
-                  </tr>
-                ))}
+                {prs.map((pr: any) => {
+                  const itemsList = pr.items || [];
+                  return (
+                    <tr key={pr.id} className="hover:bg-[#F4F9FF]/80 transition-colors">
+                      <td className="px-4 py-3 font-mono font-bold text-[#0B2148] text-xs">{pr.prNumber}</td>
+                      <td className="px-4 py-3">
+                        {itemsList.length === 0 ? (
+                          <span className="text-[#94A3B8] italic text-[11px]">No items</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 max-w-[340px]">
+                            {itemsList.slice(0, 3).map((it: any) => (
+                              <span
+                                key={it.id}
+                                className="inline-flex items-center gap-1 font-mono text-[11px] font-bold bg-[#EAF5FF] text-[#0878F9] px-2 py-0.5 rounded border border-[#BFDBFE]"
+                              >
+                                {it.material?.sku || "P/N"}
+                                <span className="font-sans text-[10px] font-medium text-[#526B91]">
+                                  ({it.requestedQuantity} {it.material?.unit || "PCS"})
+                                </span>
+                              </span>
+                            ))}
+                            {itemsList.length > 3 && (
+                              <span className="text-[10px] font-bold text-[#526B91] bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                +{itemsList.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="px-2 py-0.5 bg-[#F4F9FF] border border-[#D8E8FA] rounded text-[10px] font-bold text-[#526B91]">
+                          {pr.source}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#0B2148] font-semibold">{pr.requestedBy?.name}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center ${
+                          pr.priority === "URGENT" ? "bg-[#FEE2E2] text-[#991B1B] border border-[#FECACA]" :
+                          pr.priority === "HIGH" ? "bg-[#FFEDD5] text-[#9A3412] border border-[#FED7AA]" :
+                          pr.priority === "NORMAL" ? "bg-[#DBEAFE] text-[#1D4ED8] border border-[#BFDBFE]" :
+                          "bg-[#F1F5F9] text-[#475569] border border-[#E2E8F0]"
+                        }`}>
+                          {pr.priority}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#526B91] font-medium">
+                        {new Date(pr.requiredDate).toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full inline-flex items-center ${
+                          pr.status === "COMPLETED" || pr.status === "APPROVED" ? "bg-[#DCFCE7] text-[#166534] border border-[#BBF7D0]" :
+                          pr.status === "REJECTED" || pr.status === "CANCELLED" ? "bg-[#FEE2E2] text-[#991B1B] border border-[#FECACA]" :
+                          pr.status === "PENDING_APPROVAL" ? "bg-[#FEF3C7] text-[#92400E] border border-[#FDE68A]" :
+                          "bg-[#DBEAFE] text-[#1D4ED8] border border-[#BFDBFE]"
+                        }`}>
+                          {pr.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <a 
+                          href={`/${roleSlug}/procurement/purchase-requests/${pr.id}`} 
+                          className="inline-flex items-center gap-1 text-xs font-bold text-[#0878F9] hover:underline"
+                        >
+                          Details
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        </a>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           ) : (
@@ -319,7 +347,7 @@ export default function PurchaseRequestsPage() {
               <div className="flex justify-between items-center pb-4 border-b border-[#D8E8FA]">
                 <div>
                   <h2 className="text-lg font-display font-bold text-[#0B2148]">Create Purchase Request</h2>
-                  <p className="text-xs text-[#526B91] mt-0.5">Specify material requirements and timelines.</p>
+                  <p className="text-xs text-[#526B91] mt-0.5">Specify material requirements by Internal Part Number (P/N) and target dates.</p>
                 </div>
                 <button 
                   onClick={() => setIsCreateOpen(false)}
@@ -330,6 +358,17 @@ export default function PurchaseRequestsPage() {
               </div>
 
               <form onSubmit={handleCreateSubmit} className="flex-1 py-4 space-y-5">
+                
+                {/* Part Number Indent Notice */}
+                <div className="p-3 bg-[#EAF5FF] border border-[#BFDBFE] rounded-xl flex items-start gap-2.5 text-xs text-[#0B2148]">
+                  <AlertCircle className="w-4 h-4 text-[#0878F9] shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-[#0878F9]">Engineering Part-Number Indents (No UIN Required):</span>
+                    <p className="text-[11px] text-[#526B91] mt-0.5 leading-relaxed">
+                      Purchase Requests are tracked strictly by <strong>Internal Part Number (P/N)</strong> and component specifications. Commercial vendor UINs are assigned downstream during Purchase Order issuance.
+                    </p>
+                  </div>
+                </div>
                 
                 {/* Meta details */}
                 <div className="grid grid-cols-3 gap-4">
@@ -400,81 +439,126 @@ export default function PurchaseRequestsPage() {
                 {/* Items Box */}
                 <div className="space-y-3">
                   <div className="flex justify-between items-center pb-1.5 border-b border-[#D8E8FA]">
-                    <h3 className="text-xs font-bold text-[#526B91] uppercase tracking-wider">PR Requested Items</h3>
+                    <div>
+                      <h3 className="text-xs font-bold text-[#526B91] uppercase tracking-wider">Requested Part Number Items</h3>
+                      <p className="text-[11px] text-[#526B91]">Add components by Part Number (P/N) and required quantities</p>
+                    </div>
                     <button 
                       type="button"
                       onClick={handleAddItem}
-                      className="flex items-center gap-1 px-2.5 py-1 bg-[#F4F9FF] border border-[#D8E8FA] rounded-lg text-xs font-bold text-[#0878F9] hover:bg-[#EAF5FF] transition-colors cursor-pointer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0878F9] hover:bg-[#0667DB] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-2xs"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      Add Item
+                      Add Part
                     </button>
                   </div>
 
-                  <div className="space-y-2.5">
-                    {items.map((item, idx) => (
-                      <div key={idx} className="p-3 rounded-lg border border-[#D8E8FA] bg-[#F4F9FF] space-y-2">
-                        <div className="grid grid-cols-12 gap-2.5 items-center">
-                          <div className="col-span-4">
-                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider block">Choose Material *</label>
-                            <select
-                              required
-                              value={item.materialId}
-                              onChange={(e) => handleItemChange(idx, "materialId", e.target.value)}
-                              className="w-full mt-1 bg-white border border-[#D8E8FA] rounded-md px-2 py-1 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9]"
-                            >
-                              <option value="">Select Material SKU</option>
-                              {materials?.map((m: any) => <option key={m.id} value={m.id}>{m.sku} - {m.name} (Qty: {m.quantity})</option>)}
-                            </select>
+                  <div className="space-y-3">
+                    {items.map((item, idx) => {
+                      const selectedMat = materials?.find((m: any) => m.id === item.materialId);
+                      return (
+                        <div key={idx} className="p-3.5 rounded-xl border border-[#D8E8FA] bg-[#F8FAFC] space-y-3 shadow-2xs">
+                          <div className="flex items-center justify-between pb-1.5 border-b border-[#EAF2FC]">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                                Item #{idx + 1}
+                              </span>
+                              {selectedMat && (
+                                <span className="font-mono font-bold text-xs bg-[#EAF5FF] text-[#0878F9] px-2 py-0.5 rounded border border-[#BFDBFE]">
+                                  Part #: {selectedMat.sku}
+                                </span>
+                              )}
+                            </div>
+                            {selectedMat && (
+                              <div className="flex items-center gap-2 text-[11px]">
+                                <span className="text-[#526B91]">Category: <strong className="text-[#0B2148]">{selectedMat.category}</strong></span>
+                                <span className="font-mono font-bold px-2 py-0.5 rounded text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  Live Stock: {selectedMat.quantity} {selectedMat.unit}
+                                </span>
+                              </div>
+                            )}
                           </div>
 
-                          <div className="col-span-2">
-                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider block">Qty *</label>
-                            <input 
-                              type="number"
-                              required
-                              min={1}
-                              value={item.requestedQuantity}
-                              onChange={(e) => handleItemChange(idx, "requestedQuantity", parseInt(e.target.value, 10))}
-                              className="w-full mt-1 bg-white border border-[#D8E8FA] rounded-md px-2 py-1 text-xs text-[#0B2148] font-mono focus:outline-none focus:border-[#0878F9]"
-                            />
-                          </div>
+                          <div className="grid grid-cols-12 gap-3 items-end">
+                            <div className="col-span-5">
+                              <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider block mb-1">
+                                Part Number (P/N) & Component Name *
+                              </label>
+                              <select
+                                required
+                                value={item.materialId}
+                                onChange={(e) => {
+                                  handleItemChange(idx, "materialId", e.target.value);
+                                  const found = materials?.find((m: any) => m.id === e.target.value);
+                                  if (found && !item.specification && found.description) {
+                                    handleItemChange(idx, "specification", found.description);
+                                  }
+                                }}
+                                className="w-full bg-white border border-[#D8E8FA] rounded-lg px-2.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9]"
+                              >
+                                <option value="">-- Select Part Number (P/N) --</option>
+                                {materials?.map((m: any) => (
+                                  <option key={m.id} value={m.id}>
+                                    Part # {m.sku} — {m.name} ({m.category} | Stock: {m.quantity} {m.unit})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
 
-                          <div className="col-span-3">
-                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider block">Item Required Date *</label>
-                            <input 
-                              type="date"
-                              required
-                              value={item.requiredDate}
-                              onChange={(e) => handleItemChange(idx, "requiredDate", e.target.value)}
-                              className="w-full mt-1 bg-white border border-[#D8E8FA] rounded-md px-2 py-1 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9]"
-                            />
-                          </div>
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider block mb-1">
+                                Qty ({selectedMat?.unit || "PCS"}) *
+                              </label>
+                              <input 
+                                type="number"
+                                required
+                                min={1}
+                                value={item.requestedQuantity}
+                                onChange={(e) => handleItemChange(idx, "requestedQuantity", parseInt(e.target.value, 10))}
+                                className="w-full bg-white border border-[#D8E8FA] rounded-lg px-2.5 py-2 text-xs text-[#0B2148] font-mono focus:outline-none focus:border-[#0878F9]"
+                              />
+                            </div>
 
-                          <div className="col-span-2">
-                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider block">Specs</label>
-                            <input 
-                              type="text"
-                              placeholder="e.g. Dimensions"
-                              value={item.specification || ""}
-                              onChange={(e) => handleItemChange(idx, "specification", e.target.value)}
-                              className="w-full mt-1 bg-white border border-[#D8E8FA] rounded-md px-2 py-1 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-[#0878F9]"
-                            />
-                          </div>
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider block mb-1">
+                                Required Date *
+                              </label>
+                              <input 
+                                type="date"
+                                required
+                                value={item.requiredDate || requiredDate}
+                                onChange={(e) => handleItemChange(idx, "requiredDate", e.target.value)}
+                                className="w-full bg-white border border-[#D8E8FA] rounded-lg px-2.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9]"
+                              />
+                            </div>
 
-                          <div className="col-span-1 flex justify-center pt-4">
-                            <button 
-                              type="button" 
-                              disabled={items.length === 1}
-                              onClick={() => handleRemoveItem(idx)}
-                              className="p-1.5 bg-red-50 text-red-600 border border-red-200 rounded hover:bg-red-100 disabled:opacity-30 cursor-pointer"
-                            >
-                              <Trash className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="col-span-2">
+                              <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider block mb-1">
+                                Specs / Notes
+                              </label>
+                              <input 
+                                type="text"
+                                placeholder="e.g. Grade A, 3.2V"
+                                value={item.specification || ""}
+                                onChange={(e) => handleItemChange(idx, "specification", e.target.value)}
+                                className="w-full bg-white border border-[#D8E8FA] rounded-lg px-2.5 py-2 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-[#0878F9]"
+                              />
+                            </div>
+
+                            <div className="col-span-1 flex justify-center pb-1">
+                              <button 
+                                type="button" 
+                                disabled={items.length === 1}
+                                onClick={() => handleRemoveItem(idx)}
+                                className="p-2 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-30 cursor-pointer"
+                              >
+                                <Trash className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 

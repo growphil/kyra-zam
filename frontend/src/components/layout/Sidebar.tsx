@@ -35,6 +35,7 @@ import {
   RefreshCw,
   IndianRupee,
   FileText,
+  FileCheck2,
   MapPin,
   ShieldCheck,
   Activity,
@@ -78,6 +79,7 @@ const formatRoleLabel = (role: string) => {
   if (role === "ACCOUNTANT") return "Accountant";
   if (role === "ADMIN") return "Administrator";
   if (role === "SUPERADMIN") return "Super Admin";
+  if (role === "ULTRA_ADMIN") return "Ultra Admin";
   if (role === "QC") return "QC Inspector";
   if (role === "PACKING_OPERATOR" || role === "PACKING") return "Packing Operator";
   if (role === "SELLER") return "Seller";
@@ -121,6 +123,8 @@ const navItems = [
   { name: "Payments", href: "/finance/payments", icon: IndianRupee, roles: ["INVENTORY_MANAGER", "PURCHASE_MANAGER", "SALES_EXECUTIVE", "ACCOUNTANT", "ADMIN", "SUPERADMIN"] },
   { name: "Purchase Requests", href: "/procurement/purchase-requests", icon: ClipboardList, roles: ["PURCHASE_MANAGER", "INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Purchase Orders", href: "/procurement/purchase-orders", icon: FileText, roles: ["PURCHASE_MANAGER", "INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
+  { name: "Invoice Orders", href: "/procurement/invoice-orders", icon: FileCheck2, roles: ["PURCHASE_MANAGER", "ACCOUNTANT", "ADMIN", "SUPERADMIN"] },
+  { name: "Inv Verify", href: "/procurement/invoice-orders/verification", icon: ShieldCheck, roles: ["INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Goods Receipts", href: "/procurement/goods-receipts", icon: Archive, roles: ["PURCHASE_MANAGER", "INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Supplier Invoices", href: "/procurement/purchase-invoices", icon: FileText, roles: ["PURCHASE_MANAGER", "INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Warehouse Locations", href: "/inventory/locations", icon: MapPin, roles: ["INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
@@ -218,6 +222,8 @@ const groupsConfig = [
       "Serialized Cells",
       "Purchase Requests",
       "Purchase Orders",
+      "Invoice Orders",
+      "Inv Verify",
       "Goods Receipts",
       "BOM"
     ]
@@ -444,9 +450,11 @@ export default function Sidebar() {
   const isPaxTestEngineer = selectedRole === "PAX_TEST_ENGINEER" || pathRoleSlug === "pax-test-engineer";
   const isSeller = selectedRole === "SELLER" || pathRoleSlug === "seller";
 
+  const isUltraAdmin = selectedRole === "ULTRA_ADMIN" || pathRoleSlug === "ultra-admin" || userRoles.includes("ULTRA_ADMIN");
+
   // Map relative navItem hrefs to full paths under pathRoleSlug
   const filteredItems = navItems.filter(item => 
-    item.roles.includes("ANY") || item.roles.includes(selectedRole)
+    isUltraAdmin || item.roles.includes("ANY") || item.roles.includes(selectedRole)
   ).map(item => ({
     ...item,
     fullHref: item.href === "/dashboard" ? `/${roleSlug}` : `/${roleSlug}${item.href}`
