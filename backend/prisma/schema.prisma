@@ -1433,7 +1433,7 @@ model GoodsReceipt {
   id              String             @id @default(uuid())
   grnNumber       String             @unique // GRN-000001
   purchaseOrderId String?
-  purchaseOrder   PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrder   PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
   vendorId        String
   vendor          Vendor             @relation(fields: [vendorId], references: [id])
   receivedDate    DateTime           @default(now())
@@ -1668,7 +1668,7 @@ model InvoiceOrder {
   id                    String             @id @default(uuid())
   ioNumber              String             @unique // IO-000001
   purchaseOrderId       String?
-  purchaseOrder         PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
+  purchaseOrder         PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id], onDelete: Restrict)
   isDirect              Boolean            @default(false)
   vendorId              String
   vendor                Vendor             @relation(fields: [vendorId], references: [id])
