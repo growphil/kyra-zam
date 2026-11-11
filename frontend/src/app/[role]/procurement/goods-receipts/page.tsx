@@ -66,14 +66,16 @@ export default function GoodsReceiptsPage() {
   });
 
   // Handle PO pre-fill if converting
+  const isRealPoFromUrl = Boolean(poIdFromUrl && poIdFromUrl !== "DIRECT" && poIdFromUrl !== "NONE");
   const { data: poDetails } = useQuery({
     queryKey: ["po-prefill-details", poIdFromUrl],
     queryFn: async () => {
-      if (!poIdFromUrl) return null;
+      if (!isRealPoFromUrl || !poIdFromUrl) return null;
       const res = await api.get(`/crm/procurement/purchase-orders/${poIdFromUrl}`);
       return res.data;
     },
-    enabled: !!poIdFromUrl
+    enabled: isRealPoFromUrl,
+    retry: false
   });
 
   useEffect(() => {

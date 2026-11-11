@@ -133,7 +133,8 @@ export default function CreateInvoiceOrderPage() {
   // Form State
   const [purchaseOrderId, setPurchaseOrderId] = useState(poIdFromUrl);
   const [directVendorId, setDirectVendorId] = useState("");
-  const isDirect = purchaseOrderId === "DIRECT";
+  const isDirect = purchaseOrderId === "DIRECT" || purchaseOrderId === "NONE";
+  const isRealPO = Boolean(purchaseOrderId && purchaseOrderId !== "DIRECT" && purchaseOrderId !== "NONE");
   const [selectedVendor, setSelectedVendor] = useState<any | null>(null);
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState("");
   const [invoiceType, setInvoiceType] = useState<"FINAL_TAX_INVOICE" | "PROFORMA" | "CREDIT_NOTE" | "DEBIT_NOTE">("FINAL_TAX_INVOICE");
@@ -386,7 +387,7 @@ export default function CreateInvoiceOrderPage() {
 
   // When directVendorId or vendorsList changes in DIRECT mode, sync selectedVendor
   useEffect(() => {
-    if (purchaseOrderId === "DIRECT") {
+    if (isDirect) {
       if (directVendorId) {
         const v = (vendorsList || []).find((ven: any) => ven.id === directVendorId);
         setSelectedVendor(v || null);
@@ -394,7 +395,7 @@ export default function CreateInvoiceOrderPage() {
         setSelectedVendor(null);
       }
     }
-  }, [purchaseOrderId, directVendorId, vendorsList]);
+  }, [isDirect, directVendorId, vendorsList]);
 
   // 1. Fetch Approved Purchase Orders for selection
   const { data: poList, isLoading: isPOLoading } = useQuery({
@@ -409,15 +410,16 @@ export default function CreateInvoiceOrderPage() {
     }
   });
 
-  // 2. Fetch specific PO Details when selected
+  // 2. Fetch specific PO Details when selected (skip when DIRECT or NONE)
   const { data: selectedPODetails, isLoading: isPODetailLoading } = useQuery({
     queryKey: ["po-detail-for-io", purchaseOrderId],
     queryFn: async () => {
-      if (!purchaseOrderId) return null;
+      if (!isRealPO || !purchaseOrderId) return null;
       const res = await api.get(`/crm/procurement/purchase-orders/${purchaseOrderId}`);
       return res.data;
     },
-    enabled: !!purchaseOrderId
+    enabled: isRealPO,
+    retry: false
   });
 
   // 3. Product Catalog Query (Exact flow from purchase-orders/create Stage 2)
@@ -449,14 +451,14 @@ export default function CreateInvoiceOrderPage() {
 
   // When PO changes, sync vendor, currency, and prefill
   useEffect(() => {
-    if (selectedPODetails) {
+    if (selectedPODetails && isRealPO) {
       setSelectedVendor(selectedPODetails.vendor || null);
       setCurrency(selectedPODetails.currency || "INR");
       if (selectedPODetails.supplierInvoiceNumber && !supplierInvoiceNumber) {
         setSupplierInvoiceNumber(selectedPODetails.supplierInvoiceNumber);
       }
     }
-  }, [selectedPODetails]);
+  }, [selectedPODetails, isRealPO]);
 
   // Structured UIN Live Preview Calculation (VEN3-BILLSEQ-BRAND3-BRANDSEQ-PARTNO)
   const liveUinPreview = useMemo(() => {
@@ -1207,14 +1209,14 @@ export default function CreateInvoiceOrderPage() {
   // Create Mutation
   const createIOMutation = useMutation({
     mutationFn: (submitNow: boolean) => {
-      const isDirectMode = purchaseOrderId === "DIRECT" || !purchaseOrderId;
+      const isDirectMode = purchaseOrderId === "DIRECT" || purchaseOrderId === "NONE" || !purchaseOrderId;
       if (!isDirectMode && !purchaseOrderId) throw new Error("Purchase Order reference is required");
       if (!selectedVendor?.id) throw new Error("Vendor is required. Please select a vendor.");
       if (!supplierInvoiceNumber.trim()) throw new Error("Vendor's Invoice Number is required");
       if (items.length === 0) throw new Error("At least one item line is required in the Invoice Order");
 
       const payload: any = {
-        purchaseOrderId: isDirectMode ? undefined : purchaseOrderId,
+        purchaseOrderId: isDirectMode ? null : purchaseOrderId,
         isDirect: isDirectMode,
         vendorId: selectedVendor.id,
         supplierInvoiceNumber: supplierInvoiceNumber.trim(),
@@ -1227,7 +1229,7 @@ export default function CreateInvoiceOrderPage() {
         remarks: remarks.trim() || undefined,
         submitNow,
         items: items.map((it) => ({
-          poItemId: it.poItemId || undefined,
+          poItemId: isDirectMode ? null : (it.poItemId || null),
           materialId: it.materialId || undefined,
           productId: it.productId || undefined,
           description: it.name,
@@ -1450,14 +1452,44 @@ export default function CreateInvoiceOrderPage() {
                     value={purchaseOrderId}
                     onChange={(e) => {
                       const val = e.target.value;
+                      if (val === purchaseOrderId) return;
+
+                      const nextIsDirect = val === "DIRECT" || val === "NONE";
+                      const nextIsRealPO = Boolean(val && val !== "DIRECT" && val !== "NONE");
+
                       setPurchaseOrderId(val);
-                      if (val === "DIRECT") {
+
+                      if (nextIsDirect) {
+                        // Switching to Direct Invoice Order mode
+                        // Clear any items that were imported from or linked to a PO
+                        if (items.length > 0) {
+                          setItems([]);
+                          toast.info("Switched to Direct Invoice mode. Existing item lines reset.");
+                        }
+                        setSelectedPOItemIds([]);
                         if (directVendorId) {
                           const v = (vendorsList || []).find((ven: any) => ven.id === directVendorId);
                           setSelectedVendor(v || null);
                         } else {
                           setSelectedVendor(null);
                         }
+                      } else if (nextIsRealPO) {
+                        // Switching to a real PO
+                        if (items.length > 0) {
+                          setItems([]);
+                          toast.info("Purchase Order selected. Line items reset.");
+                        }
+                        setSelectedPOItemIds([]);
+                        setDirectVendorId("");
+                        // Vendor and currency will sync once selectedPODetails loads for this PO
+                      } else {
+                        // Cleared selection ("")
+                        if (items.length > 0) {
+                          setItems([]);
+                        }
+                        setSelectedPOItemIds([]);
+                        setSelectedVendor(null);
+                        setDirectVendorId("");
                       }
                     }}
                     className="w-full px-3 py-2.5 text-xs bg-[#F8FAFC] border border-[#D8E8FA] rounded-xl text-[#0B2148] font-semibold focus:ring-2 focus:ring-[#0878F9]/30"

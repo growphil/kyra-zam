@@ -1772,6 +1772,9 @@ export async function procurementRoutes(fastify: FastifyInstance) {
   // GET /crm/procurement/purchase-orders/:id (Detailed View)
   fastify.get("/purchase-orders/:id", purchasePreHandler, async (request, reply) => {
     const { id } = request.params as { id: string };
+    if (!id || id === "DIRECT" || id === "NONE") {
+      return reply.status(404).send({ error: "Purchase Order not found" });
+    }
     const po = await prisma.purchaseOrder.findUnique({
       where: { id },
       include: {
