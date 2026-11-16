@@ -163,6 +163,10 @@ async function main() {
   const { seedCompleteEnterpriseDemo } = await import("../src/scripts/seed-complete-enterprise-demo");
   await seedCompleteEnterpriseDemo();
 
+  // 5. Seed Expense Defaults (25 Categories + 5,000 ZMW Threshold)
+  const { seedExpenseDefaults } = await import("../src/scripts/seed-expense-defaults");
+  await seedExpenseDefaults(prisma);
+
   console.log("\n🚀 Seeding complete! Complete enterprise demo dataset successfully pushed across all roles.");
 }
 

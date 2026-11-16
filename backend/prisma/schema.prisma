@@ -96,6 +96,14 @@ model User {
   invoiceOrderApprovals         InvoiceOrderApproval[]     @relation("IOApprovalUser")
   recordedInvoicePayments       InvoicePayment[]          @relation("IOPaymentRecorder")
   uploadedInvoiceDocuments      InvoiceDocument[]         @relation("IODocumentUploader")
+  uploadedMedia                 MediaAsset[]              @relation("MediaUploader")
+  createdExpenses               Expense[]                 @relation("ExpenseSubmitter")
+  approvedExpenses              Expense[]                 @relation("ExpenseApprover")
+  rejectedExpenses              Expense[]                 @relation("ExpenseRejecter")
+  uploadedExpenseAttachments    ExpenseAttachment[]       @relation("ExpenseAttachmentUploader")
+  expenseApprovals              ExpenseApproval[]         @relation("ExpenseApprovalUser")
+  createdExpenseThresholds      ExpenseThreshold[]        @relation("ExpenseThresholdCreator")
+  expenseAuditLogs              ExpenseAuditLog[]         @relation("ExpenseAuditActor")
 }
 
 
@@ -2955,6 +2963,253 @@ model EmployeePayrollRecord {
   @@index([employeeId])
   @@index([periodId])
 }
+
+enum MediaCategory {
+  PRODUCT_IMAGE
+  PRODUCT_GALLERY
+  MATERIAL_IMAGE
+  EMPLOYEE_PROFILE
+  EMPLOYEE_DOCUMENT
+  FINANCE_PAYMENT_PROOF
+  FINANCE_INVOICE
+  FINANCE_RECEIPT
+  PROCUREMENT_PO
+  PROCUREMENT_GRN
+  PROCUREMENT_SUPPLIER_INVOICE
+  PROCUREMENT_INVOICE_ORDER
+  PRODUCTION_JOB_CARD
+  PRODUCTION_REPORT
+  QUALITY_PAX_REPORT
+  QUALITY_INSPECTION
+  SERVICE_RMA
+  SERVICE_BATTERY_PHOTO
+  SERVICE_REPORT
+  INVENTORY_SCRAP
+  DISPATCH_POD
+  DISPATCH_SIGNATURE
+  GENERAL_ATTACHMENT
+}
+
+enum MediaVisibility {
+  PRIVATE
+  PUBLIC_CATALOG
+  RESTRICTED
+}
+
+enum MediaUploadStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  DELETED
+}
+
+model MediaAsset {
+  id              String            @id @default(uuid())
+  originalName    String
+  objectKey       String            @unique
+  bucket          String
+  mimeType        String
+  fileExtension   String?
+  fileSize        Int?
+  storageProvider String            @default("S3")
+  category        MediaCategory
+  visibility      MediaVisibility   @default(PRIVATE)
+  status          MediaUploadStatus @default(PENDING)
+  uploadedById    String?
+  uploadedBy      User?             @relation("MediaUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  entityType      String?           // e.g. "payment", "pax", "product", "purchase_order", "invoice_order"
+  entityId        String?           // ID of the related business record
+  metadata        Json?             // Flexible metadata (dimensions, hash, etc.)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([category])
+  @@index([entityType, entityId])
+  @@index([uploadedById])
+  @@index([status])
+}
+
+// =========================================================================
+// EXPENSE MANAGEMENT & APPROVAL SYSTEM ENUMS & MODELS
+// =========================================================================
+
+enum ExpenseStatus {
+  DRAFT
+  PENDING_VERIFICATION
+  AUTO_APPROVED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ExpenseApprovalMethod {
+  AUTO
+  ACCOUNTANT
+  SUPERADMIN
+}
+
+enum ExpensePaymentStatus {
+  UNPAID
+  PAID
+  PARTIALLY_PAID
+}
+
+model ExpenseCategory {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  expenses    Expense[]
+
+  @@index([name])
+  @@index([isActive])
+}
+
+model ExpenseThreshold {
+  id           String   @id @default(uuid())
+  amount       Decimal  @db.Decimal(12, 2)
+  currency     String   @default("ZMW")
+  effectiveFrom DateTime @default(now())
+  isActive     Boolean  @default(true)
+  createdById  String
+  createdBy    User     @relation("ExpenseThresholdCreator", fields: [createdById], references: [id])
+  changeReason String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([effectiveFrom])
+}
+
+model Expense {
+  id                String                 @id @default(uuid())
+  expenseNumber     String                 @unique // EXP-000001
+  title             String
+  description       String
+  categoryId        String
+  category          ExpenseCategory        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amount            Decimal                @db.Decimal(12, 2)
+  currency          String                 @default("ZMW")
+  expenseDate       DateTime
+  department        String?
+  costCentre        String?
+  vendorName        String?
+  vendorContact     String?
+  invoiceNumber     String?
+  paymentMethod     String                 @default("BANK_TRANSFER")
+  paymentReference  String?
+  paymentStatus     ExpensePaymentStatus   @default(UNPAID)
+  status            ExpenseStatus          @default(PENDING_VERIFICATION)
+  approvalMethod    ExpenseApprovalMethod?
+  submittedById     String
+  submittedBy       User                   @relation("ExpenseSubmitter", fields: [submittedById], references: [id])
+  approvedById      String?
+  approvedBy        User?                  @relation("ExpenseApprover", fields: [approvedById], references: [id])
+  rejectedById      String?
+  rejectedBy        User?                  @relation("ExpenseRejecter", fields: [rejectedById], references: [id])
+  rejectionReason   String?
+  thresholdSnapshot Decimal?               @db.Decimal(12, 2)
+  thresholdCurrency String?                @default("ZMW")
+  submittedAt       DateTime               @default(now())
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  attachments       ExpenseAttachment[]
+  approvals         ExpenseApproval[]
+  ledgerEntry       ExpenseLedger?
+  auditLogs         ExpenseAuditLog[]
+
+  @@index([expenseNumber])
+  @@index([status])
+  @@index([categoryId])
+  @@index([submittedById])
+  @@index([expenseDate])
+  @@index([createdAt])
+}
+
+model ExpenseAttachment {
+  id           String   @id @default(uuid())
+  expenseId    String
+  expense      Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  fileName     String
+  fileUrl      String
+  mimeType     String
+  fileSize     Int
+  documentType String   @default("RECEIPT") // RECEIPT, TAX_INVOICE, PAYMENT_CONFIRMATION, BANK_PROOF, QUOTATION, OTHER
+  uploadedById String
+  uploadedBy   User     @relation("ExpenseAttachmentUploader", fields: [uploadedById], references: [id])
+  uploadedAt   DateTime @default(now())
+
+  @@index([expenseId])
+}
+
+model ExpenseApproval {
+  id            String   @id @default(uuid())
+  expenseId     String
+  expense       Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  approverId    String?
+  approver      User?    @relation("ExpenseApprovalUser", fields: [approverId], references: [id])
+  action        String   // AUTO_APPROVED, APPROVED, REJECTED
+  reason        String?
+  approvalLevel String   // SYSTEM, ACCOUNTANT, SUPERADMIN
+  createdAt     DateTime @default(now())
+
+  @@index([expenseId])
+  @@index([approverId])
+}
+
+model ExpenseLedger {
+  id              String   @id @default(uuid())
+  ledgerNumber    String   @unique // EL-000001
+  expenseId       String   @unique // 1-to-1: strictly one ledger entry per approved expense
+  expense         Expense  @relation(fields: [expenseId], references: [id], onDelete: Restrict)
+  expenseNumber   String
+  expenseDate     DateTime
+  categoryName    String
+  description     String
+  vendorName      String?
+  amount          Decimal  @db.Decimal(12, 2)
+  currency        String   @default("ZMW")
+  department      String?
+  paymentMethod   String
+  submittedByName String
+  submittedById   String
+  approvedByName  String   // "SYSTEM" or user name
+  approvedById    String?
+  approvalMethod  String   // "AUTO", "ACCOUNTANT", "SUPERADMIN"
+  approvedAt      DateTime
+  createdAt       DateTime @default(now())
+
+  @@index([ledgerNumber])
+  @@index([expenseNumber])
+  @@index([expenseDate])
+  @@index([categoryName])
+  @@index([createdAt])
+}
+
+model ExpenseAuditLog {
+  id             String   @id @default(uuid())
+  expenseId      String?
+  expense        Expense? @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  actorId        String
+  actor          User     @relation("ExpenseAuditActor", fields: [actorId], references: [id])
+  action         String
+  previousStatus String?
+  newStatus      String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  @@index([expenseId])
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+
 
 
 

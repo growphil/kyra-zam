@@ -146,15 +146,6 @@ const SEED_ACCOUNTS: SeedAccount[] = [
     icon: ShieldCheck,
   },
   {
-    role: "Ultra Admin",
-    name: "Master Ultra Admin",
-    email: "ultraadmin@kyrazam.com",
-    pass: "UltraAdmin@2025",
-    badge: "ULTRA_ADMIN",
-    category: "Administration",
-    icon: Crown,
-  },
-  {
     role: "Super Admin",
     name: "Arjun Mehta",
     email: "superadmin@kyrazam.com",
@@ -356,7 +347,7 @@ export default function LoginPage() {
               </p>
             </div>
             <span className="text-[10px] font-mono font-bold px-2.5 py-1 bg-[#EAF5FF] border border-[#D8E8FA] rounded-full text-[#0878F9]">
-              13 Roles Active
+              {SEED_ACCOUNTS.length} Roles Active
             </span>
           </div>
 

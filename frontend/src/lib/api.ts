@@ -202,4 +202,106 @@ export const getMediaUrl = (url: string | null | undefined): string => {
   return `${backendBase.replace(/\/+$/, "")}/${url.replace(/^\/+/, "")}`;
 };
 
+/**
+ * Request a short-lived S3 presigned download URL for a secure MediaAsset
+ */
+export async function getSecureMediaAccessUrl(mediaId: string, expiresIn?: number) {
+  const res = await api.get(`/media/${mediaId}/access`, {
+    params: expiresIn ? { expiresIn } : undefined,
+  });
+  return res.data as {
+    mediaId: string;
+    accessUrl: string;
+    expiresInSeconds: number;
+    mimeType: string;
+    fileName: string;
+    fileSize: number | null;
+  };
+}
+
+/**
+ * Execute full secure 3-step direct S3 upload:
+ * 1. POST /media/upload/initiate -> get presigned PUT URL
+ * 2. PUT <file> directly to S3 with progress tracking
+ * 3. POST /media/upload/complete -> verify in S3 & complete record
+ */
+export async function uploadFileToS3(
+  file: File,
+  category: string,
+  options?: {
+    onProgress?: (percent: number) => void;
+    entityType?: string;
+    entityId?: string;
+    signal?: AbortSignal;
+  }
+): Promise<{
+  mediaId: string;
+  url: string;
+  objectKey: string;
+  fileName: string;
+}> {
+  // Step 1: Initiate
+  const initRes = await api.post("/media/upload/initiate", {
+    originalName: file.name,
+    mimeType: file.type || "application/octet-stream",
+    fileSize: file.size,
+    category,
+    entityType: options?.entityType,
+    entityId: options?.entityId,
+  });
+
+  const { mediaId, objectKey, uploadUrl } = initRes.data;
+
+  // Step 2: Upload directly to private AWS S3
+  await axios.put(uploadUrl, file, {
+    signal: options?.signal,
+    headers: {
+      "Content-Type": file.type || "application/octet-stream",
+    },
+    onUploadProgress: (progressEvent) => {
+      if (options?.onProgress && progressEvent.total) {
+        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        options.onProgress(percent);
+      }
+    },
+  });
+
+  // Step 3: Complete & verify in backend
+  await api.post("/media/upload/complete", {
+    mediaId,
+    objectKey,
+  });
+
+  return {
+    mediaId,
+    url: `/media/${mediaId}/file`,
+    objectKey,
+    fileName: file.name,
+  };
+}
+
+/**
+ * Resolve any media URL, handling /media/:id references by fetching a presigned URL
+ */
+export async function resolveMediaUrl(urlOrMediaId: string | null | undefined): Promise<string> {
+  if (!urlOrMediaId) return "";
+  if (urlOrMediaId.startsWith("http://") || urlOrMediaId.startsWith("https://") || urlOrMediaId.startsWith("data:")) {
+    return urlOrMediaId;
+  }
+
+  // Check if string contains /media/<id> or is a UUID
+  const uuidMatch = urlOrMediaId.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+  if (uuidMatch) {
+    const mediaId = uuidMatch[1];
+    try {
+      const access = await getSecureMediaAccessUrl(mediaId);
+      return access.accessUrl;
+    } catch {
+      // Fallback to getMediaUrl
+    }
+  }
+
+  return getMediaUrl(urlOrMediaId);
+}
+
 export default api;

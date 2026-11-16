@@ -565,12 +565,13 @@ export async function paxRoutes(fastify: FastifyInstance) {
       const data = await (request as any).file();
       if (!data) return reply.status(400).send({ error: "No report file selected" });
 
-      // Upload report using StorageService (stores in uploads folder, extensible to S3)
+      // Upload report using S3-native StorageService with MediaAsset tracking
       const uploadResult = await StorageService.uploadTestReport(
         data.file,
         data.filename,
         paxSerial,
-        data.mimetype
+        data.mimetype,
+        user.id
       );
 
       // Get fields from multipart

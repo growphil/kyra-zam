@@ -3,6 +3,7 @@ import { prisma } from "../prisma";
 import { requireRoles } from "../middleware/rbac";
 import { wsManager } from "../websocket/manager";
 import { StorageService } from "../services/storage.service";
+import { MediaService } from "../services/media.service";
 import { 
   PurchaseRequestCreateSchema,
   PurchaseOrderCreateSchema,
@@ -1472,6 +1473,14 @@ export async function procurementRoutes(fastify: FastifyInstance) {
       }
     });
 
+    // Clean up previous S3 image asset if replaced
+    if (data.imageUrl !== undefined && existingProduct.imageUrl && existingProduct.imageUrl !== data.imageUrl) {
+      const match = existingProduct.imageUrl.match(/\/media\/([a-f0-9-]+)\/file/);
+      if (match) {
+        await MediaService.deleteMedia(match[1], { id: actor.id, roles: (actor as any).roles || ["ADMIN"] }).catch(() => {});
+      }
+    }
+
     await prisma.auditLog.create({
       data: {
         entityType: "product_master",
@@ -1536,6 +1545,15 @@ export async function procurementRoutes(fastify: FastifyInstance) {
       await tx.product.delete({
         where: { id }
       });
+
+      // 2b. Delete associated S3 media asset if present
+      if (existing.imageUrl) {
+        const match = existing.imageUrl.match(/\/media\/([a-f0-9-]+)\/file/);
+        if (match) {
+          const mediaId = match[1];
+          await MediaService.deleteMedia(mediaId, user).catch(() => {});
+        }
+      }
 
       // 3. If material is linked and no other products or active BOMs use it, purge material
       if (existing.materialId) {
@@ -2531,31 +2549,112 @@ export async function procurementRoutes(fastify: FastifyInstance) {
     if (!po) return reply.status(404).send({ error: "Purchase Order not found" });
 
     try {
-      const fileData = await (request as any).file();
-      if (!fileData) return reply.status(400).send({ error: "No file provided for upload" });
+      if ((request as any).isMultipart && (request as any).isMultipart()) {
+        const fileData = await (request as any).file();
+        if (!fileData) return reply.status(400).send({ error: "No file provided for upload" });
 
-      const buffer = await fileData.toBuffer();
-      const uploadResult = await StorageService.uploadPOAttachment(
-        buffer,
-        fileData.filename,
-        fileData.mimetype
-      );
+        const buffer = await fileData.toBuffer();
+        const uploadResult = await StorageService.uploadPOAttachment(
+          buffer,
+          fileData.filename,
+          fileData.mimetype,
+          actor.id,
+          id
+        );
 
-      const attachment = await prisma.purchaseOrderAttachment.create({
-        data: {
-          purchaseOrderId: id,
-          fileName: fileData.filename,
-          fileUrl: uploadResult.url,
-          fileSize: buffer.length,
-          fileType: fileData.mimetype,
-          uploadedById: actor.id
+        const attachment = await prisma.purchaseOrderAttachment.create({
+          data: {
+            purchaseOrderId: id,
+            fileName: fileData.filename,
+            fileUrl: uploadResult.url,
+            fileSize: buffer.length,
+            fileType: fileData.mimetype,
+            uploadedById: actor.id
+          }
+        });
+
+        return reply.status(201).send(attachment);
+      } else {
+        // Direct S3 JSON payload from MediaUploader
+        const body = (request.body || {}) as {
+          fileName?: string;
+          fileUrl?: string;
+          objectKey?: string;
+          mediaId?: string;
+          fileSize?: number;
+          fileType?: string;
+        };
+
+        if (!body.fileUrl && !body.mediaId && !body.objectKey) {
+          return reply.status(400).send({ error: "Missing fileUrl, mediaId, or objectKey in request" });
         }
-      });
 
-      return reply.status(201).send(attachment);
+        let mediaAsset = null;
+        if (body.mediaId) {
+          mediaAsset = await prisma.mediaAsset.findUnique({ where: { id: body.mediaId } });
+        } else if (body.objectKey) {
+          mediaAsset = await prisma.mediaAsset.findUnique({ where: { objectKey: body.objectKey } });
+        }
+
+        const fileName = body.fileName || mediaAsset?.originalName || "PO-Attachment";
+        const fileUrl = body.fileUrl || (mediaAsset ? `/media/${mediaAsset.id}/file` : "");
+        const fileSize = body.fileSize || mediaAsset?.fileSize || null;
+        const fileType = body.fileType || mediaAsset?.mimeType || "application/octet-stream";
+
+        const attachment = await prisma.purchaseOrderAttachment.create({
+          data: {
+            purchaseOrderId: id,
+            fileName,
+            fileUrl,
+            fileSize,
+            fileType,
+            uploadedById: actor.id
+          }
+        });
+
+        // Link MediaAsset entity reference if present
+        if (mediaAsset) {
+          await prisma.mediaAsset.update({
+            where: { id: mediaAsset.id },
+            data: {
+              entityType: "purchase_order",
+              entityId: id,
+            }
+          }).catch(() => {});
+        }
+
+        return reply.status(201).send(attachment);
+      }
     } catch (err: any) {
       return reply.status(400).send({ error: err.message || "Failed to upload attachment" });
     }
+  });
+
+  // DELETE /crm/procurement/purchase-orders/:id/attachments/:attachmentId
+  fastify.delete("/purchase-orders/:id/attachments/:attachmentId", poWriteHandler, async (request, reply) => {
+    const { id, attachmentId } = request.params as { id: string; attachmentId: string };
+    const attachment = await prisma.purchaseOrderAttachment.findFirst({
+      where: { id: attachmentId, purchaseOrderId: id }
+    });
+    if (!attachment) {
+      return reply.status(404).send({ error: "Attachment not found" });
+    }
+
+    if (attachment.fileUrl) {
+      const match = attachment.fileUrl.match(/\/media\/([a-f0-9-]+)\/file/);
+      if (match) {
+        const mediaId = match[1];
+        await MediaService.deleteMedia(mediaId, request.user as any).catch(err => {
+          console.warn("[Procurement] S3 deletion warning:", err.message);
+        });
+      }
+    }
+
+    await prisma.purchaseOrderAttachment.delete({
+      where: { id: attachmentId }
+    });
+
+    return reply.status(200).send({ success: true, message: "Attachment deleted successfully" });
   });
 
   // PUT /crm/procurement/purchase-orders/:id/status (Workflow state moves)

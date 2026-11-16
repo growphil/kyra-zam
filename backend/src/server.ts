@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { FastifyRequest, FastifyReply } from "fastify";
 import { authPlugin } from "./plugins/auth";
 import { corsPlugin } from "./plugins/cors";
 import { multipartPlugin } from "./plugins/multipart";
@@ -31,6 +31,8 @@ import { warrantyRoutes } from "./routes/warranty";
 import { stationRoutes } from "./routes/stations";
 import { packingRoutes } from "./routes/packing";
 import { hrRoutes } from "./routes/hr";
+import { mediaRoutes } from "./routes/media";
+import { expenseRoutes } from "./routes/expenses";
 import { websocketRoutes } from "./routes/websocket";
 
 
@@ -65,6 +67,42 @@ async function main() {
   await app.register(authPlugin);
   await app.register(multipartPlugin);
   await app.register(websocketPlugin);
+  // Intercept and protect sensitive confidential legacy directories served from /public/
+  app.addHook("onRequest", async (req: FastifyRequest, reply: FastifyReply) => {
+    const url = req.url.toLowerCase();
+    if (
+      url.includes("/uploads/payments") ||
+      url.includes("/uploads/reports") ||
+      url.includes("/uploads/po-attachments") ||
+      url.includes("/uploads/documents")
+    ) {
+      try {
+        await req.jwtVerify();
+        const user = req.user as any;
+        const roles: string[] = user?.roles || [];
+        const isPrivileged = roles.some((r) =>
+          [
+            "ULTRA_ADMIN",
+            "ADMIN",
+            "SUPERADMIN",
+            "ACCOUNTANT",
+            "PAX_TEST_ENGINEER",
+            "TEST_ENGINEER",
+            "SUPERVISOR",
+            "PURCHASE_MANAGER",
+            "QC",
+            "HR_PAYROLL"
+          ].includes(r)
+        );
+        if (!isPrivileged) {
+          return reply.code(403).send({ error: "Forbidden: Access to confidential legacy documents is restricted." });
+        }
+      } catch {
+        return reply.code(401).send({ error: "Unauthorized: Access to confidential documents requires authentication." });
+      }
+    }
+  });
+
   await app.register(fastifyStatic, {
     root: path.join(__dirname, "../public"),
     prefix: "/public/",
@@ -109,6 +147,9 @@ async function main() {
   await app.register(packingRoutes, { prefix: "/crm/packing" });
   await app.register(hrRoutes, { prefix: "/hr" });
   await app.register(hrRoutes, { prefix: "/crm/hr" });
+  await app.register(mediaRoutes, { prefix: "/media" });
+  await app.register(expenseRoutes, { prefix: "/expenses" });
+  await app.register(expenseRoutes, { prefix: "/crm/expenses" });
 
 
 

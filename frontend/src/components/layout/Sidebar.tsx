@@ -58,7 +58,8 @@ import {
   X,
   Layout,
   Clock,
-  Banknote
+  Banknote,
+  Receipt
 } from "lucide-react";
 
 const getRoleSlug = (role: string) => {
@@ -121,6 +122,16 @@ const navItems = [
   { name: "Finance Dashboard", href: "/finance", icon: IndianRupee, roles: ["INVENTORY_MANAGER", "PURCHASE_MANAGER", "ACCOUNTANT", "ADMIN", "SUPERADMIN"] },
   { name: "Invoices", href: "/finance/invoices", icon: FileText, roles: ["INVENTORY_MANAGER", "PURCHASE_MANAGER", "SALES_EXECUTIVE", "ACCOUNTANT", "ADMIN", "SUPERADMIN"] },
   { name: "Payments", href: "/finance/payments", icon: IndianRupee, roles: ["INVENTORY_MANAGER", "PURCHASE_MANAGER", "SALES_EXECUTIVE", "ACCOUNTANT", "ADMIN", "SUPERADMIN"] },
+  { name: "Expense Dashboard", href: "/expenses", icon: LayoutDashboard, roles: ["ADMIN", "ACCOUNTANT", "SUPERADMIN"] },
+  { name: "Create Expense", href: "/expenses/create", icon: PlusSquare, roles: ["ADMIN", "ACCOUNTANT", "SUPERADMIN"] },
+  { name: "My Expenses", href: "/expenses/my", icon: ClipboardList, roles: ["ADMIN", "ACCOUNTANT", "SUPERADMIN"] },
+  { name: "Admin Verification", href: "/expenses/accountant-queue", icon: ShieldCheck, roles: ["ACCOUNTANT"] },
+  { name: "Expense Approvals", href: "/expenses/approvals", icon: ShieldCheck, roles: ["SUPERADMIN"] },
+  { name: "Expense Ledger", href: "/expenses/ledger", icon: FileText, roles: ["ACCOUNTANT", "SUPERADMIN"] },
+  { name: "Expense Categories", href: "/expenses/categories", icon: Layers, roles: ["SUPERADMIN"] },
+  { name: "Expense Threshold", href: "/expenses/threshold", icon: Settings, roles: ["ADMIN", "ACCOUNTANT", "SUPERADMIN"] },
+  { name: "Expense Reports", href: "/expenses/reports", icon: FileBarChart, roles: ["ADMIN", "ACCOUNTANT", "SUPERADMIN"] },
+  { name: "Expense Audit Logs", href: "/expenses/audit-logs", icon: Activity, roles: ["SUPERADMIN"] },
   { name: "Purchase Requests", href: "/procurement/purchase-requests", icon: ClipboardList, roles: ["PURCHASE_MANAGER", "INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Purchase Orders", href: "/procurement/purchase-orders", icon: FileText, roles: ["PURCHASE_MANAGER", "INVENTORY_MANAGER", "ADMIN", "SUPERADMIN"] },
   { name: "Invoice Orders", href: "/procurement/invoice-orders", icon: FileCheck2, roles: ["PURCHASE_MANAGER", "ACCOUNTANT", "ADMIN", "SUPERADMIN"] },
@@ -196,6 +207,23 @@ const groupsConfig = [
       "Financial Clearance",
       "Invoices",
       "Payments"
+    ]
+  },
+  {
+    id: "expenses",
+    name: "Expense Management",
+    icon: Receipt,
+    itemNames: [
+      "Expense Dashboard",
+      "Create Expense",
+      "My Expenses",
+      "Admin Verification",
+      "Expense Approvals",
+      "Expense Ledger",
+      "Expense Categories",
+      "Expense Threshold",
+      "Expense Reports",
+      "Expense Audit Logs"
     ]
   },
   {
@@ -1068,7 +1096,7 @@ export default function Sidebar() {
                     const isActive = item.fullHref === activeItem?.fullHref;
                     return (
                       <Link
-                        key={item.name}
+                        key={`${item.name}-${item.fullHref}`}
                         href={item.fullHref}
                         onClick={() => recordRecentOpenedItem(item.name)}
                         className={twMerge(
@@ -1189,7 +1217,7 @@ export default function Sidebar() {
                                   const isSubActive = subItem.fullHref === activeItem?.fullHref;
                                   return (
                                     <Link
-                                      key={subItem.name}
+                                      key={`${group.id}-${subItem.name}-${subItem.href}`}
                                       href={subItem.fullHref}
                                       onClick={() => recordRecentOpenedItem(subItem.name)}
                                       className={twMerge(
@@ -1231,7 +1259,7 @@ export default function Sidebar() {
 
                                 return (
                                   <div
-                                    key={item.name}
+                                    key={`${group.id}-${item.name}-${item.href}`}
                                     draggable={isDragReorderMode}
                                     onDragStart={(e) => handleSubItemDragStart(e, group.id, item.name)}
                                     onDragOver={(e) => handleSubItemDragOver(e, group.id, item.name)}
@@ -1644,7 +1672,7 @@ export default function Sidebar() {
 
                           return (
                             <div
-                              key={subName}
+                              key={`${activeGroup.id}-${subName}-${subIdx}`}
                               draggable
                               onDragStart={(e) => handleSubItemDragStart(e, activeGroup.id, subName)}
                               onDragOver={(e) => handleSubItemDragOver(e, activeGroup.id, subName)}

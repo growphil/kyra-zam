@@ -103,5 +103,5 @@ export default auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|public/uploads|uploads|favicon.ico).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|media|public/uploads|uploads|favicon.ico).*)"],
 };

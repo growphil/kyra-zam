@@ -4,6 +4,9 @@ import { requireRoles } from "../middleware/rbac";
 import { InvoiceCreateSchema, PaymentCreateSchema, PaymentVerificationRejectSchema } from "../schemas/zod.schemas";
 import { Prisma } from "../generated/client";
 import PDFDocument from "pdfkit";
+import { StorageService } from "../services/storage.service";
+import { MediaValidationService } from "../services/media-validation.service";
+import { MediaCategory, MediaVisibility, MediaUploadStatus } from "../types/media.types";
 import fs from "fs";
 import path from "path";
 import { pipeline } from "stream";
@@ -773,25 +776,68 @@ export async function financeRoutes(fastify: FastifyInstance) {
 
   // --- PAYMENT PROOF UPLOAD & PAYMENTS WORKFLOW ---
 
-  // POST /crm/finance/upload-proof (Proof of payment upload)
+  // POST /crm/finance/upload-proof (Proof of payment upload - AWS S3 Native)
   fastify.post("/upload-proof", paymentSubmitPreHandler, async (request, reply) => {
+    const actor = request.user as { id: string; roles: string[] };
     const data = await request.file();
     if (!data) {
       return reply.status(400).send({ error: "No file provided" });
     }
 
-    const uploadDir = path.join(__dirname, "../../public/uploads/payments");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+    try {
+      const buffer = await data.toBuffer();
+      const originalName = data.filename || "payment-proof.png";
+      const mimeType = data.mimetype || "application/octet-stream";
+
+      // 1. Validate extension, MIME type, size, and category permissions
+      const { sanitizedExt } = MediaValidationService.validateUploadRequest(
+        MediaCategory.FINANCE_PAYMENT_PROOF,
+        originalName,
+        mimeType,
+        buffer.length,
+        actor.roles || ["ACCOUNTANT"]
+      );
+
+      // 2. Magic byte file signature verification
+      const isValidSig = MediaValidationService.verifyFileSignature(buffer, mimeType, sanitizedExt);
+      if (!isValidSig) {
+        return reply.status(400).send({
+          error: `File signature mismatch for "${mimeType}". Possible forged or corrupted file. Upload rejected.`
+        });
+      }
+
+      // 3. Generate structured S3 object key & upload to AWS S3
+      const objectKey = StorageService.generateObjectKey(MediaCategory.FINANCE_PAYMENT_PROOF, originalName);
+      await StorageService.uploadBuffer(buffer, objectKey, mimeType);
+
+      // 4. Create MediaAsset record
+      const mediaAsset = await prisma.mediaAsset.create({
+        data: {
+          originalName,
+          objectKey,
+          bucket: StorageService.getBucketName(),
+          mimeType,
+          fileExtension: sanitizedExt,
+          fileSize: buffer.length,
+          category: MediaCategory.FINANCE_PAYMENT_PROOF,
+          visibility: MediaVisibility.PRIVATE,
+          status: MediaUploadStatus.COMPLETED,
+          uploadedById: actor.id,
+          entityType: "payment",
+        }
+      });
+
+      // 5. Return secure media access reference
+      const accessUrl = `/media/${mediaAsset.id}/file`;
+      return {
+        url: accessUrl,
+        mediaId: mediaAsset.id,
+        objectKey: mediaAsset.objectKey,
+        fileName: mediaAsset.originalName
+      };
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message || "Failed to upload payment proof to S3" });
     }
-
-    const ext = path.extname(data.filename) || ".png";
-    const fileName = `PAY-PROOF-${Date.now()}-${Math.random().toString(36).substring(2, 8)}${ext}`;
-    const filePath = path.join(uploadDir, fileName);
-
-    await pump(data.file, fs.createWriteStream(filePath));
-
-    return { url: `/public/uploads/payments/${fileName}` };
   });
 
   // GET /crm/finance/payments
