@@ -21,7 +21,9 @@ import {
   Layers, 
   Crown,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -160,6 +162,7 @@ export default function LoginPage() {
   const [mounted, setMounted] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeAutoRole, setActiveAutoRole] = useState<string | null>(null);
   const router = useRouter();
@@ -294,15 +297,28 @@ export default function LoginPage() {
                 Password
               </label>
               <div className="relative group">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B] group-focus-within:text-[#0878F9] transition-colors" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#64748B] group-focus-within:text-[#0878F9] transition-colors pointer-events-none" />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••••"
-                  className="w-full bg-white border border-[#D8E8FA] rounded-lg py-2.5 pl-10 pr-3.5 text-sm text-[#0B2148] placeholder-[#94A3B8] focus:outline-none focus:border-[#0878F9] focus:ring-2 focus:ring-[#0878F9]/15 transition-all font-mono"
+                  className="w-full bg-white border border-[#D8E8FA] rounded-lg py-2.5 pl-10 pr-10 text-sm text-[#0B2148] placeholder-[#94A3B8] focus:outline-none focus:border-[#0878F9] focus:ring-2 focus:ring-[#0878F9]/15 transition-all font-mono"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#0878F9] p-1 transition-colors cursor-pointer focus:outline-none"
+                  title={showPassword ? "Hide password" : "Show password"}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
             </div>
 
