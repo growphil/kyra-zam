@@ -432,6 +432,14 @@ model FactorySetting {
   workingHoursPerDay           Decimal  @db.Decimal(4, 2) @default(8.00)
   productionDaysPerWeek        Int      @default(6)
   defaultDeliveryTerms         String   @default("EXW - Ex Works")
+
+  // Company Settlement & Bank Account Details
+  bankName                     String?  @default("")
+  accountName                  String?  @default("")
+  accountNumber                String?  @default("")
+  branch                       String?  @default("")
+  swiftCode                    String?  @default("")
+  bankDetails                  String?  @default("")
   
   updatedById                  String?
   updatedAt                    DateTime @updatedAt

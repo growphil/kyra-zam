@@ -13,6 +13,7 @@ import {
   Mail, 
   Phone, 
   CheckCircle,
+  Landmark,
   AlertTriangle,
   FileDown,
   RefreshCw,
@@ -43,6 +44,7 @@ import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import StatusBadge from "@/components/ui/StatusBadge";
+import { useFactoryFinancials, getCurrencySymbol } from "@/hooks/useFactoryFinancials";
 
 export default function QuotationDetailPage() {
   const params = useParams();
@@ -50,6 +52,7 @@ export default function QuotationDetailPage() {
   const quotationId = params.id as string;
   const roleSlug = params.role as string;
   const queryClient = useQueryClient();
+  const factoryFinancials = useFactoryFinancials();
 
   // Workflow Dialog states
   const [isApproveOpen, setIsApproveOpen] = useState(false);
@@ -86,13 +89,6 @@ export default function QuotationDetailPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const formatINR = (val: number) => {
-    return "₹ " + Number(val || 0).toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-  };
-
   const handleCopyLink = () => {
     const url = typeof window !== 'undefined' ? window.location.href : "";
     navigator.clipboard.writeText(url);
@@ -127,7 +123,7 @@ export default function QuotationDetailPage() {
       setEditForm({
         assignedSalesUserId: res.data.assignedSalesUserId || "",
         validUntil: res.data.validUntil ? res.data.validUntil.split("T")[0] : "",
-        currency: res.data.currency || "INR",
+        currency: res.data.currency || factoryFinancials.currency,
         additionalCharges: Number(res.data.additionalCharges || 0),
         paymentTerms: res.data.paymentTerms || "50% Advance",
         deliveryTerms: res.data.deliveryTerms || "Standard Delivery",
@@ -138,10 +134,10 @@ export default function QuotationDetailPage() {
           productRef: item.productRef || "",
           materialId: item.materialId || "",
           description: item.description || "Item",
-          quantity: Number(item.quantity) || 1,
-          unitPrice: Number(item.unitPrice) || 0,
-          discount: Number(item.discount) || 0,
-          taxRate: Number(item.taxRate) || 18,
+          quantity: item.quantity || 1,
+          unitPrice: Number(item.unitPrice || 0),
+          discount: Number(item.discount || 0),
+          taxRate: Number(item.taxRate || 0),
           specification: item.specification || "",
           notes: item.notes || ""
         }))
@@ -149,6 +145,19 @@ export default function QuotationDetailPage() {
       return res.data;
     }
   });
+
+  const activeCurrency = quotation?.currency || factoryFinancials.currency;
+  const activeCurrencySymbol = getCurrencySymbol(activeCurrency);
+
+  const formatMoney = (val: number, curr?: string) => {
+    const sym = curr ? getCurrencySymbol(curr) : activeCurrencySymbol;
+    return `${sym} ` + Number(val || 0).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
+  const formatINR = (val: number, curr?: string) => formatMoney(val, curr);
 
   const { data: users } = useQuery({
     queryKey: ["crm-system-users"],
@@ -782,6 +791,43 @@ export default function QuotationDetailPage() {
               </div>
             </div>
 
+            {/* Official Company Settlement Account Details */}
+            {(factoryFinancials.bankName || factoryFinancials.accountNumber) && (
+              <div className="p-3 bg-blue-50/60 rounded-xl border border-blue-200/80 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Landmark className="w-3.5 h-3.5" /> Official Company Settlement Account
+                  </span>
+                  <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                    ✓ Factory Standard
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div>
+                    <span className="text-[9px] font-bold text-[#526B91] uppercase tracking-wider block">Bank</span>
+                    <span className="font-semibold text-[#0B2148] text-[11px] block mt-0.5">{factoryFinancials.bankName}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-[#526B91] uppercase tracking-wider block">Beneficiary</span>
+                    <span className="font-semibold text-[#0B2148] text-[11px] block mt-0.5">{factoryFinancials.accountName || "KYRA ZAM LIMITED"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-[#526B91] uppercase tracking-wider block">Account No</span>
+                    <span className="font-mono font-bold text-blue-700 text-[11px] block mt-0.5">{factoryFinancials.accountNumber}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-bold text-[#526B91] uppercase tracking-wider block">SWIFT / Branch</span>
+                    <span className="font-mono text-slate-700 text-[11px] block mt-0.5">{factoryFinancials.swiftCode ? `${factoryFinancials.swiftCode} • ` : ""}{factoryFinancials.branch || "Lusaka Main"}</span>
+                  </div>
+                </div>
+                {factoryFinancials.bankDetails && (
+                  <p className="text-[10px] text-[#526B91] pt-1 border-t border-blue-100">
+                    <span className="font-bold text-slate-700">Instructions: </span>{factoryFinancials.bankDetails}
+                  </p>
+                )}
+              </div>
+            )}
+
             {(quotation.notes || quotation.customerNotes || quotation.internalNotes) && (
               <div className="pt-2 border-t border-[#D8E8FA] grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 {quotation.notes && (
@@ -837,7 +883,7 @@ export default function QuotationDetailPage() {
               </div>
 
               <div className="flex justify-between items-center text-[#526B91]">
-                <span>GST Tax Total:</span>
+                <span>VAT Tax Total:</span>
                 <span className="font-mono font-semibold text-[#0B2148]">{formatINR(Number(quotation.tax))}</span>
               </div>
 

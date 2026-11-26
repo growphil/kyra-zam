@@ -728,7 +728,12 @@ export async function financeRoutes(fastify: FastifyInstance) {
     doc.fontSize(10).fillColor("#0F172A").text("PAYMENT TERMS & BANK DETAILS", 50, y, { bold: true } as any);
     doc.fontSize(9).fillColor("#475569");
     doc.text(`Payment Terms: ${invoice.paymentTerms}`, 50, y + 15);
-    doc.text(`Bank: HDFC Bank | A/C: 50200012345678 | IFSC: HDFC0001234`, 50, y + 30);
+
+    const factorySetting = await prisma.factorySetting.findUnique({ where: { id: "global" } });
+    const bankLine = (factorySetting && (factorySetting.bankName || factorySetting.accountNumber))
+      ? `Bank: ${factorySetting.bankName || "Zanaco"} | A/C: ${factorySetting.accountNumber || ""} | Beneficiary: ${factorySetting.accountName || "KYRA ZAM"} | SWIFT: ${factorySetting.swiftCode || "N/A"}`
+      : `Bank: Zanaco Bank | A/C: 1029384756 | Beneficiary: KYRA ZAM LIMITED`;
+    doc.text(bankLine, 50, y + 30);
     if (invoice.notes) {
       doc.text(`Notes: ${invoice.notes}`, 50, y + 45, { width: 500 });
     }

@@ -481,9 +481,14 @@ export default function Sidebar() {
   const isUltraAdmin = selectedRole === "ULTRA_ADMIN" || pathRoleSlug === "ultra-admin" || userRoles.includes("ULTRA_ADMIN");
 
   // Map relative navItem hrefs to full paths under pathRoleSlug
+  const seenHrefs = new Set<string>();
   const filteredItems = navItems.filter(item => 
     isUltraAdmin || item.roles.includes("ANY") || item.roles.includes(selectedRole)
-  ).map(item => ({
+  ).filter(item => {
+    if (seenHrefs.has(item.href)) return false;
+    seenHrefs.add(item.href);
+    return true;
+  }).map(item => ({
     ...item,
     fullHref: item.href === "/dashboard" ? `/${roleSlug}` : `/${roleSlug}${item.href}`
   }));
@@ -522,9 +527,9 @@ export default function Sidebar() {
       const remaining = group.itemNames.filter(name => 
         !ordered.some(o => o.toLowerCase() === name.toLowerCase())
       );
-      return [...ordered, ...remaining];
+      return Array.from(new Set([...ordered, ...remaining]));
     }
-    return [...group.itemNames];
+    return Array.from(new Set([...group.itemNames]));
   };
 
   // Drag and drop handlers for module groups
@@ -703,9 +708,19 @@ export default function Sidebar() {
         const valB = indexB !== -1 ? indexB : 999;
         return valA - valB;
       });
+
+    // Deduplicate by href and name so that no two items ever conflict as children
+    const seenItems = new Set<string>();
+    const uniqueGroupItems = groupItems.filter(item => {
+      const key = `${item.name}-${item.href}`;
+      if (seenItems.has(key)) return false;
+      seenItems.add(key);
+      return true;
+    });
+
     return {
       ...group,
-      items: groupItems
+      items: uniqueGroupItems
     };
   }).filter(group => group.items.length > 0);
 
@@ -888,11 +903,11 @@ export default function Sidebar() {
               }
             ]
               .filter(item => !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((item) => {
+              .map((item, idx) => {
                 const isActive = item.match(pathname);
                 return (
                   <Link
-                    key={item.name}
+                    key={`seller-${item.name}-${item.href}-${idx}`}
                     href={item.href}
                     className={twMerge(
                       "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group/item relative min-w-0 font-medium text-xs",
@@ -930,11 +945,11 @@ export default function Sidebar() {
               }
             ]
               .filter(item => !searchQuery || item.name.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((item) => {
+              .map((item, idx) => {
                 const isActive = item.match(pathname);
                 return (
                   <Link
-                    key={item.name}
+                    key={`seller-${item.name}-${item.href}-${idx}`}
                     href={item.href}
                     className={twMerge(
                       "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group/item relative min-w-0 font-medium text-xs",
@@ -967,11 +982,11 @@ export default function Sidebar() {
               { name: "Assembly Queue", href: `/${roleSlug}`, icon: ClipboardList, match: (p: string) => p === `/${roleSlug}` || p === `/${roleSlug}/` },
               { name: "Active Assembly", href: `/${roleSlug}/pax/create`, icon: Package, match: (p: string) => p.includes("/pax/create") },
               { name: "Assembly History", href: `/${roleSlug}/pax/all`, icon: Boxes, match: (p: string) => p.includes("/pax/all") }
-            ].map((item) => {
+            ].map((item, idx) => {
               const isActive = item.match(pathname);
               return (
                 <Link
-                  key={item.name}
+                  key={`assy-${item.name}-${item.href}-${idx}`}
                   href={item.href}
                   className={twMerge(
                     "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group/item relative min-w-0 font-medium text-xs",
@@ -1007,11 +1022,11 @@ export default function Sidebar() {
               { name: "PAX QC Queue", href: `/${roleSlug}/pax`, icon: Package, match: (p: string) => p.includes("/pax") && !p.includes("history") },
               { name: "Defect Analytics", href: `/${roleSlug}/reports/defects`, icon: BarChart3, match: (p: string) => p.includes("reports/defects") },
               { name: "Reports", href: `/${roleSlug}/reports`, icon: FileBarChart, match: (p: string) => p === `/${roleSlug}/reports` }
-            ].map((item) => {
+            ].map((item, idx) => {
               const isActive = item.match(pathname);
               return (
                 <Link
-                  key={item.name}
+                  key={`assy-${item.name}-${item.href}-${idx}`}
                   href={item.href}
                   className={twMerge(
                     "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group/item relative min-w-0 font-medium text-xs",
@@ -1040,11 +1055,11 @@ export default function Sidebar() {
           </div>
         ) : isTestEngineer ? (
           <div className="space-y-0.5">
-            {searchedItems.map(item => {
+            {searchedItems.map((item, idx) => {
               const isActive = activeItem?.name === item.name || activeItem?.fullHref === item.fullHref;
               return (
                 <Link
-                  key={item.name}
+                  key={`test-${item.name}-${item.fullHref}-${idx}`}
                   href={item.fullHref}
                   className={twMerge(
                     "flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 group/item relative min-w-0 font-medium text-xs",
@@ -1092,11 +1107,11 @@ export default function Sidebar() {
                   )}
                 </div>
                 <div className="space-y-0.5">
-                  {favoriteItems.map(item => {
+                  {favoriteItems.map((item, favIdx) => {
                     const isActive = item.fullHref === activeItem?.fullHref;
                     return (
                       <Link
-                        key={`${item.name}-${item.fullHref}`}
+                        key={`fav-${item.name}-${item.fullHref}-${favIdx}`}
                         href={item.fullHref}
                         onClick={() => recordRecentOpenedItem(item.name)}
                         className={twMerge(
@@ -1213,11 +1228,11 @@ export default function Sidebar() {
                                 {group.name}
                               </div>
                               <div className="py-1 space-y-0.5">
-                                {group.items.map(subItem => {
+                                {group.items.map((subItem, subIdx) => {
                                   const isSubActive = subItem.fullHref === activeItem?.fullHref;
                                   return (
                                     <Link
-                                      key={`${group.id}-${subItem.name}-${subItem.href}`}
+                                      key={`pop-${group.id}-${subItem.name}-${subItem.href}-${subIdx}`}
                                       href={subItem.fullHref}
                                       onClick={() => recordRecentOpenedItem(subItem.name)}
                                       className={twMerge(
@@ -1252,14 +1267,14 @@ export default function Sidebar() {
                                 isDragReorderMode ? "pl-6" : "pl-3 border-l border-[#0D2A54] ml-3.5"
                               )}
                             >
-                              {group.items.map(item => {
+                              {group.items.map((item, itemIdx) => {
                                 const isActive = item.fullHref === activeItem?.fullHref;
                                 const isItemDragging = draggedSubItem?.groupId === group.id && draggedSubItem?.itemName === item.name;
                                 const isItemDragOver = dragOverSubItem?.groupId === group.id && dragOverSubItem?.itemName === item.name;
 
                                 return (
                                   <div
-                                    key={`${group.id}-${item.name}-${item.href}`}
+                                    key={`${group.id}-${item.name}-${item.href}-${itemIdx}`}
                                     draggable={isDragReorderMode}
                                     onDragStart={(e) => handleSubItemDragStart(e, group.id, item.name)}
                                     onDragOver={(e) => handleSubItemDragOver(e, group.id, item.name)}

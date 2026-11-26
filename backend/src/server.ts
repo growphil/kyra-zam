@@ -33,6 +33,7 @@ import { packingRoutes } from "./routes/packing";
 import { hrRoutes } from "./routes/hr";
 import { mediaRoutes } from "./routes/media";
 import { expenseRoutes } from "./routes/expenses";
+import { getFactoryFinancialSettings } from "./services/factorySettings.service";
 import { websocketRoutes } from "./routes/websocket";
 
 
@@ -150,6 +151,11 @@ async function main() {
   await app.register(mediaRoutes, { prefix: "/media" });
   await app.register(expenseRoutes, { prefix: "/expenses" });
   await app.register(expenseRoutes, { prefix: "/crm/expenses" });
+
+  // Global factory financial & shipping settings accessible to all authenticated roles
+  app.get("/factory-settings/financial", { preHandler: [app.authenticate] }, async () => {
+    return getFactoryFinancialSettings();
+  });
 
 
 

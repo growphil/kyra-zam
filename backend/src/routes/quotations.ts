@@ -6,6 +6,7 @@ import {
   QuotationCreateSchema, 
   QuotationUpdateSchema 
 } from "../schemas/zod.schemas";
+import { getFactoryFinancialSettings } from "../services/factorySettings.service";
 import PDFDocument from "pdfkit";
 
 // Notification helper
@@ -283,6 +284,8 @@ export async function quotationRoutes(fastify: FastifyInstance) {
 
     const { items, subtotal, discount, tax, additionalCharges, grandTotal } = calculatePricing(data.items, data.additionalCharges, data.freight);
     const quotationNumber = await generateQuotationNumber();
+    const factorySettings = await getFactoryFinancialSettings();
+    const finalCurrency = data.currency || factorySettings.defaultCurrency || "ZMW";
 
     const quotation = await prisma.$transaction(async (tx) => {
       const q = await tx.quotation.create({
@@ -294,7 +297,7 @@ export async function quotationRoutes(fastify: FastifyInstance) {
           assignedSalesUserId: data.assignedSalesUserId || null,
           validUntil: new Date(data.validUntil),
           status: "PENDING_APPROVAL", // Initial status is WAITING_FOR_APPROVAL
-          currency: data.currency,
+          currency: finalCurrency,
           subtotal,
           discount,
           tax,
@@ -1016,17 +1019,27 @@ export async function quotationRoutes(fastify: FastifyInstance) {
     y += 40;
     
     // Terms & Notes Box
-    doc.fontSize(10).fillColor("#0F172A").text("COMMERCIAL TERMS & NOTES", 50, y, { bold: true } as any);
+    doc.fontSize(10).fillColor("#0F172A").text("COMMERCIAL TERMS & SETTLEMENT DETAILS", 50, y, { bold: true } as any);
     doc.fontSize(9).fillColor("#475569");
     doc.text(`Payment Terms: ${quotation.paymentTerms}`, 50, y + 15);
     doc.text(`Delivery Notes: ${quotation.deliveryTerms}`, 50, y + 30);
+    
+    let termsY = y + 45;
+    const factorySetting = await prisma.factorySetting.findUnique({ where: { id: "global" } });
+    if (factorySetting && (factorySetting.bankName || factorySetting.accountNumber)) {
+      const bankLine = `Bank: ${factorySetting.bankName || "Zanaco"} | A/C: ${factorySetting.accountNumber || ""} | Beneficiary: ${factorySetting.accountName || "KYRA ZAM"} | SWIFT: ${factorySetting.swiftCode || "N/A"}`;
+      doc.text(bankLine, 50, termsY, { bold: true } as any);
+      termsY += 15;
+    }
+
     if (quotation.customerNotes) {
-      doc.text(`Customer Notes: ${quotation.customerNotes}`, 50, y + 45, { width: 500 });
+      doc.text(`Customer Notes: ${quotation.customerNotes}`, 50, termsY, { width: 500 });
+      termsY += 15;
       if (quotation.notes) {
-        doc.text(`Additional Notes: ${quotation.notes}`, 50, y + 60, { width: 500 });
+        doc.text(`Additional Notes: ${quotation.notes}`, 50, termsY, { width: 500 });
       }
     } else if (quotation.notes) {
-      doc.text(`Additional Notes: ${quotation.notes}`, 50, y + 45, { width: 500 });
+      doc.text(`Additional Notes: ${quotation.notes}`, 50, termsY, { width: 500 });
     }
 
     doc.end();

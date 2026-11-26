@@ -256,9 +256,9 @@ function AdminSettingsContent() {
       title: "QC Thresholds & Fallback",
       desc: "Global cell screening tolerance bands, capacity margins, and serial number display rules.",
       icon: ShieldCheck,
-      color: "text-[#166534]",
-      borderHover: "hover:border-emerald-500/40 hover:shadow-emerald-500/10",
-      bgIcon: "bg-emerald-50 border-emerald-200 text-[#166534]",
+      color: "text-[#0878F9]",
+      borderHover: "hover:border-[#0878F9]/40 hover:shadow-blue-500/10",
+      bgIcon: "bg-[#EAF5FF] border-[#D8E8FA] text-[#0878F9]",
       badge: thresholds ? `${thresholds.ahMin}-${thresholds.ahMax} Ah | IR: ${thresholds.irMax}mΩ` : "Configured",
       features: ["Global Safety Bands", "Production Model Sync", "Barcode Suffix Masking"]
     },
@@ -267,9 +267,9 @@ function AdminSettingsContent() {
       title: "Vendor Registry",
       desc: "Supplier and manufacturer master catalog, contact management, and delivery channel statuses.",
       icon: Truck,
-      color: "text-sky-600",
-      borderHover: "hover:border-sky-500/40 hover:shadow-sky-500/10",
-      bgIcon: "bg-sky-50 border-sky-200 text-sky-600",
+      color: "text-[#0878F9]",
+      borderHover: "hover:border-[#0878F9]/40 hover:shadow-blue-500/10",
+      bgIcon: "bg-[#EAF5FF] border-[#D8E8FA] text-[#0878F9]",
       badge: `${vendors?.length || 0} Suppliers`,
       features: ["Vendor Master Directory", "Contact Details", "Direct Procurement Linkage"]
     },
@@ -278,9 +278,9 @@ function AdminSettingsContent() {
       title: "Personnel & Access Control",
       desc: "Employee directory, granular departmental permissions, role matrix assignments, and token security.",
       icon: Users,
-      color: "text-purple-600",
-      borderHover: "hover:border-purple-500/40 hover:shadow-purple-500/10",
-      bgIcon: "bg-purple-50 border-purple-200 text-purple-600",
+      color: "text-[#0878F9]",
+      borderHover: "hover:border-[#0878F9]/40 hover:shadow-blue-500/10",
+      bgIcon: "bg-[#EAF5FF] border-[#D8E8FA] text-[#0878F9]",
       badge: `${users?.length || 0} Accounts`,
       features: ["Multi-Role Assignment", "Instant Token Revocation", "Operator Authorization"]
     },
@@ -289,9 +289,9 @@ function AdminSettingsContent() {
       title: "Maintenance & Purge",
       desc: "Factory pre-commissioning tools, selective database purge, and irreversible system reset protocols.",
       icon: ShieldAlert,
-      color: "text-rose-600",
-      borderHover: "hover:border-rose-500/40 hover:shadow-rose-500/10",
-      bgIcon: "bg-rose-50 border-rose-200 text-rose-600",
+      color: "text-[#0878F9]",
+      borderHover: "hover:border-[#0878F9]/40 hover:shadow-blue-500/10",
+      bgIcon: "bg-[#EAF5FF] border-[#D8E8FA] text-[#0878F9]",
       badge: "High-Security Zone",
       features: ["Selective Data Wipes", "Factory Reset Procedures", "Audit Safeguards"]
     }
@@ -326,8 +326,8 @@ function AdminSettingsContent() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 border border-amber-200/80 rounded-full text-amber-700 text-[10px] font-bold uppercase tracking-wider shadow-2xs">
-              <Shield className="w-3 h-3 text-amber-600" />
+            <div className="flex items-center gap-1.5 px-2.5 py-0.5 bg-[#EAF5FF] border border-[#D8E8FA] rounded-full text-[#0878F9] text-[10px] font-bold uppercase tracking-wider shadow-2xs">
+              <Shield className="w-3 h-3 text-[#0878F9]" />
               <span>Executive System Hub</span>
             </div>
             {activeTab !== "overview" && (
@@ -365,14 +365,14 @@ function AdminSettingsContent() {
               <button
                 type="button"
                 onClick={handleResetTabOrder}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#526B91] hover:text-[#0B2148] bg-white hover:bg-slate-50 border border-[#D8E8FA] rounded-lg shadow-2xs transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#526B91] hover:text-[#0B2148] bg-white hover:bg-[#EAF5FF] border border-[#D8E8FA] rounded-lg shadow-2xs transition-all cursor-pointer"
                 title="Reset tab alignment to default order"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-[#526B91]" />
                 <span>Reset Alignment</span>
               </button>
             )}
-            <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#526B91] bg-[#F8FAFC] px-2.5 py-1 rounded-lg border border-[#D8E8FA] shadow-2xs select-none">
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#526B91] bg-[#F4F9FF] px-2.5 py-1 rounded-lg border border-[#D8E8FA] shadow-2xs select-none">
               <GripVertical className="w-3.5 h-3.5 text-[#0878F9]" />
               <span>Drag tabs to realign</span>
             </div>
@@ -381,13 +381,15 @@ function AdminSettingsContent() {
       </div>
 
       {/* 3. Segmented Tab Navigation Control — Single View, Every Option with Defined Border, No Scroll */}
-      <div className="bg-slate-50/70 p-1 rounded-xl border border-[#D8E8FA] shadow-2xs w-full">
+      <div className="bg-[#F4F9FF] p-1 rounded-xl border border-[#D8E8FA] shadow-2xs w-full">
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-1.5 w-full">
           {orderedTabsConfig.map((tab) => {
             const isActive = activeTab === tab.key;
             const Icon = tab.icon;
             const isDragging = draggedTabKey === tab.key;
             const isDragOver = dragOverTabKey === tab.key && !isDragging;
+            const gripClass = isActive ? "text-[#0878F9]/70" : "text-[#526B91]/40 group-hover:text-[#526B91]";
+            const iconClass = isActive ? "text-[#0878F9]" : "text-[#526B91] group-hover:text-[#0878F9]";
 
             return (
               <button
@@ -407,25 +409,23 @@ function AdminSettingsContent() {
                     ? "ring-2 ring-[#0878F9] ring-dashed bg-[#EAF5FF] scale-[1.02] border-[#0878F9]"
                     : isActive 
                     ? "bg-[#EAF5FF] text-[#0878F9] border-[#0878F9] font-bold ring-1 ring-[#0878F9]/20" 
-                    : "bg-white text-slate-700 hover:text-[#0878F9] hover:bg-[#F4F9FF] border-[#D8E8FA] hover:border-[#0878F9]/40"
+                    : "bg-white text-[#0B2148] hover:text-[#0878F9] hover:bg-[#EAF5FF] border-[#D8E8FA] hover:border-[#0878F9]/40"
                 }`}
               >
-                <GripVertical className={`w-3 h-3 flex-shrink-0 transition-opacity ${
-                  isActive ? "text-[#0878F9]/70" : "text-slate-300 group-hover:text-slate-500"
-                }`} />
-                <Icon className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${isActive ? "text-[#0878F9]" : "text-[#526B91] group-hover:text-[#0878F9]"}`} />
+                <GripVertical className={`w-3 h-3 flex-shrink-0 transition-opacity ${gripClass}`} />
+                <Icon className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${iconClass}`} />
                 <span className="truncate tracking-tight">{tab.label}</span>
                 {tab.badge !== undefined && (
                   tab.badge === "Online" ? (
-                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold flex-shrink-0 bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold flex-shrink-0 bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#0878F9] animate-pulse" />
                       ON
                     </span>
                   ) : (
                     <span className={`px-1.5 py-0.2 rounded text-[9px] font-mono font-bold flex-shrink-0 border ${
                       isActive 
                         ? "bg-[#0878F9]/15 text-[#0878F9] border-[#0878F9]/30" 
-                        : "bg-slate-50 text-[#526B91] border-slate-200"
+                        : "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]"
                     }`}>
                       {tab.badge}
                     </span>
@@ -475,11 +475,11 @@ function AdminSettingsContent() {
                   <p className="text-lg sm:text-xl font-display font-bold text-[#0B2148] mt-0.5">
                     {users?.length || 0} Users
                   </p>
-                  <p className="text-[11px] text-purple-700 font-semibold mt-0.5">
+                  <p className="text-[11px] text-[#0878F9] font-semibold mt-0.5">
                     {users?.filter((u: any) => u.isActive !== false).length || 0} Active Authorized
                   </p>
                 </div>
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700 flex-shrink-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#EAF5FF] border border-[#D8E8FA] flex items-center justify-center text-[#0878F9] flex-shrink-0">
                   <Users className="w-5 h-5" />
                 </div>
               </div>
@@ -755,7 +755,7 @@ function AdminSettingsContent() {
           >
             <div className="flex items-center justify-between p-3.5 sm:p-4 bg-white rounded-xl border border-[#D8E8FA] shadow-2xs">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600">
+                <div className="w-8 h-8 rounded-lg bg-[#EAF5FF] border border-[#D8E8FA] flex items-center justify-center text-[#0878F9]">
                   <Users className="w-4.5 h-4.5" />
                 </div>
                 <div>

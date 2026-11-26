@@ -26,6 +26,7 @@ import {
 import { Prisma } from "../generated/client";
 import bcrypt from "bcryptjs";
 import { wsManager } from "../websocket/manager";
+import { getFactoryFinancialSettings } from "../services/factorySettings.service";
 
 export async function adminRoutes(fastify: FastifyInstance) {
   // GET /admin/vendors - list all vendors (active and inactive, with resolved actual categories)
@@ -2402,53 +2403,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
     "/factory/financial-settings",
     { preHandler: [fastify.authenticate] },
     async () => {
-      let config = await prisma.factorySetting.findUnique({
-        where: { id: "global" }
-      });
-
-      if (!config) {
-        // Create default record if not yet initialized
-        config = await prisma.factorySetting.create({
-          data: {
-            id: "global",
-            defaultPaymentTerms: "100% Advance",
-            defaultAdvancePercentage: new Prisma.Decimal("100.00"),
-            defaultFreightAmount: new Prisma.Decimal("0.00"),
-            defaultHandlingCharge: new Prisma.Decimal("0.00"),
-            defaultTaxRate: new Prisma.Decimal("18.00"),
-            defaultQuotationValidityDays: 30,
-            defaultCurrency: "INR",
-            minimumOrderValue: new Prisma.Decimal("0.00"),
-            shippingCalculationMethod: "FLAT_RATE",
-            freeShippingThreshold: new Prisma.Decimal("0.00"),
-            defaultShippingCarrier: "Standard Road Logistics",
-            shippingTaxRate: new Prisma.Decimal("18.00"),
-            estimatedDeliveryLeadDays: 3,
-            defaultUnitSystem: "METRIC",
-            defaultTimezone: "Asia/Kolkata",
-            workingHoursPerDay: new Prisma.Decimal("8.00"),
-            productionDaysPerWeek: 6,
-            defaultDeliveryTerms: "EXW - Ex Works"
-          }
-        });
-      }
-
-      return {
-        defaultPaymentTerms: config.defaultPaymentTerms,
-        defaultAdvancePercentage: Number(config.defaultAdvancePercentage),
-        defaultFreightAmount: Number(config.defaultFreightAmount),
-        defaultHandlingCharge: Number(config.defaultHandlingCharge),
-        defaultTaxRate: Number(config.defaultTaxRate),
-        defaultQuotationValidityDays: config.defaultQuotationValidityDays,
-        defaultCurrency: config.defaultCurrency,
-        minimumOrderValue: Number(config.minimumOrderValue),
-        shippingCalculationMethod: (config as any).shippingCalculationMethod || "FLAT_RATE",
-        freeShippingThreshold: Number((config as any).freeShippingThreshold || 0),
-        defaultShippingCarrier: (config as any).defaultShippingCarrier || "Standard Road Logistics",
-        shippingTaxRate: Number((config as any).shippingTaxRate || config.defaultTaxRate || 18),
-        estimatedDeliveryLeadDays: (config as any).estimatedDeliveryLeadDays || 3,
-        updatedAt: config.updatedAt
-      };
+      return getFactoryFinancialSettings();
     }
   );
 
@@ -2477,6 +2432,12 @@ export async function adminRoutes(fastify: FastifyInstance) {
           defaultShippingCarrier: data.defaultShippingCarrier || "Standard Road Logistics",
           shippingTaxRate: new Prisma.Decimal((data.shippingTaxRate ?? data.defaultTaxRate ?? 18).toFixed(2)),
           estimatedDeliveryLeadDays: data.estimatedDeliveryLeadDays ?? 3,
+          bankName: data.bankName ?? "",
+          accountName: data.accountName ?? "",
+          accountNumber: data.accountNumber ?? "",
+          branch: data.branch ?? "",
+          swiftCode: data.swiftCode ?? "",
+          bankDetails: data.bankDetails ?? "",
           updatedById: user.id
         };
 
@@ -2504,7 +2465,9 @@ export async function adminRoutes(fastify: FastifyInstance) {
                 defaultTaxRate: Number(previous.defaultTaxRate),
                 defaultQuotationValidityDays: previous.defaultQuotationValidityDays,
                 defaultCurrency: previous.defaultCurrency,
-                minimumOrderValue: Number(previous.minimumOrderValue)
+                minimumOrderValue: Number(previous.minimumOrderValue),
+                bankName: (previous as any).bankName,
+                accountNumber: (previous as any).accountNumber
               } : null,
               after: {
                 defaultPaymentTerms: saved.defaultPaymentTerms,
@@ -2519,7 +2482,13 @@ export async function adminRoutes(fastify: FastifyInstance) {
                 freeShippingThreshold: Number((saved as any).freeShippingThreshold || 0),
                 defaultShippingCarrier: (saved as any).defaultShippingCarrier,
                 shippingTaxRate: Number((saved as any).shippingTaxRate || 18),
-                estimatedDeliveryLeadDays: (saved as any).estimatedDeliveryLeadDays
+                estimatedDeliveryLeadDays: (saved as any).estimatedDeliveryLeadDays,
+                bankName: (saved as any).bankName,
+                accountName: (saved as any).accountName,
+                accountNumber: (saved as any).accountNumber,
+                branch: (saved as any).branch,
+                swiftCode: (saved as any).swiftCode,
+                bankDetails: (saved as any).bankDetails
               }
             }
           }
@@ -2528,7 +2497,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         return saved;
       });
 
-      return {
+      const responsePayload = {
         defaultPaymentTerms: updated.defaultPaymentTerms,
         defaultAdvancePercentage: Number(updated.defaultAdvancePercentage),
         defaultFreightAmount: Number(updated.defaultFreightAmount),
@@ -2542,8 +2511,26 @@ export async function adminRoutes(fastify: FastifyInstance) {
         defaultShippingCarrier: (updated as any).defaultShippingCarrier || "Standard Road Logistics",
         shippingTaxRate: Number((updated as any).shippingTaxRate || updated.defaultTaxRate || 18),
         estimatedDeliveryLeadDays: (updated as any).estimatedDeliveryLeadDays || 3,
+        bankName: (updated as any).bankName || "",
+        accountName: (updated as any).accountName || "",
+        accountNumber: (updated as any).accountNumber || "",
+        branch: (updated as any).branch || "",
+        swiftCode: (updated as any).swiftCode || "",
+        bankDetails: (updated as any).bankDetails || "",
         updatedAt: updated.updatedAt
       };
+
+      // Broadcast real-time update to all connected roles & modules across the application
+      wsManager.broadcast("admin:factory:update", {
+        action: "FACTORY_FINANCIAL_UPDATED",
+        financialSettings: responsePayload
+      });
+      wsManager.broadcast("factory:financial:update", { financialSettings: responsePayload });
+      wsManager.broadcastFinance("factory_financial_updated", { financialSettings: responsePayload });
+      wsManager.broadcastSales("factory_financial_updated", { financialSettings: responsePayload });
+      wsManager.broadcastProcurement("factory_financial_updated", { financialSettings: responsePayload });
+
+      return responsePayload;
     }
   );
 
@@ -2559,15 +2546,21 @@ export async function adminRoutes(fastify: FastifyInstance) {
         defaultAdvancePercentage: new Prisma.Decimal("100.00"),
         defaultFreightAmount: new Prisma.Decimal("0.00"),
         defaultHandlingCharge: new Prisma.Decimal("0.00"),
-        defaultTaxRate: new Prisma.Decimal("18.00"),
+        defaultTaxRate: new Prisma.Decimal("16.00"),
         defaultQuotationValidityDays: 30,
-        defaultCurrency: "INR",
+        defaultCurrency: "ZMW",
         minimumOrderValue: new Prisma.Decimal("0.00"),
         shippingCalculationMethod: "FLAT_RATE",
         freeShippingThreshold: new Prisma.Decimal("0.00"),
         defaultShippingCarrier: "Standard Road Logistics",
-        shippingTaxRate: new Prisma.Decimal("18.00"),
+        shippingTaxRate: new Prisma.Decimal("16.00"),
         estimatedDeliveryLeadDays: 3,
+        bankName: "Zambia National Commercial Bank (Zanaco)",
+        accountName: "KYRA ZAM LIMITED",
+        accountNumber: "1029384756",
+        branch: "Lusaka Corporate Branch (010022)",
+        swiftCode: "ZANAZMLX",
+        bankDetails: "Please quote the Quotation Number as payment reference when remitting funds.",
         updatedById: user.id
       };
 
@@ -2587,7 +2580,7 @@ export async function adminRoutes(fastify: FastifyInstance) {
         }
       });
 
-      return {
+      const responsePayload = {
         defaultPaymentTerms: saved.defaultPaymentTerms,
         defaultAdvancePercentage: Number(saved.defaultAdvancePercentage),
         defaultFreightAmount: Number(saved.defaultFreightAmount),
@@ -2601,8 +2594,26 @@ export async function adminRoutes(fastify: FastifyInstance) {
         defaultShippingCarrier: (saved as any).defaultShippingCarrier || "Standard Road Logistics",
         shippingTaxRate: Number((saved as any).shippingTaxRate || 18),
         estimatedDeliveryLeadDays: (saved as any).estimatedDeliveryLeadDays || 3,
+        bankName: (saved as any).bankName || "",
+        accountName: (saved as any).accountName || "",
+        accountNumber: (saved as any).accountNumber || "",
+        branch: (saved as any).branch || "",
+        swiftCode: (saved as any).swiftCode || "",
+        bankDetails: (saved as any).bankDetails || "",
         updatedAt: saved.updatedAt
       };
+
+      // Broadcast real-time reset to all connected roles & modules across the application
+      wsManager.broadcast("admin:factory:update", {
+        action: "FACTORY_FINANCIAL_RESET",
+        financialSettings: responsePayload
+      });
+      wsManager.broadcast("factory:financial:update", { financialSettings: responsePayload });
+      wsManager.broadcastFinance("factory_financial_updated", { financialSettings: responsePayload });
+      wsManager.broadcastSales("factory_financial_updated", { financialSettings: responsePayload });
+      wsManager.broadcastProcurement("factory_financial_updated", { financialSettings: responsePayload });
+
+      return responsePayload;
     }
   );
 

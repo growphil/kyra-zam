@@ -37,6 +37,7 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import ConfirmDeleteDialog from "@/components/ui/ConfirmDeleteDialog";
+import { useFactoryFinancials, formatMoneyWithSymbol } from "@/hooks/useFactoryFinancials";
 
 export type AssetCategory =
   | "MACHINERY"
@@ -101,34 +102,34 @@ export interface CompanyAssetItem {
 }
 
 const CATEGORY_CONFIG: Record<AssetCategory, { label: string; badgeClass: string }> = {
-  MACHINERY: { label: "Machinery & Heavy Plant", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" },
-  TESTING_EQUIPMENT: { label: "Testing & Calibration", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" },
-  TOOLING: { label: "Tooling & Fixtures", badgeClass: "bg-amber-50 text-amber-700 border-amber-200" },
-  FURNITURE: { label: "Furniture & Workstations", badgeClass: "bg-stone-50 text-stone-700 border-stone-200" },
-  IT_HARDWARE: { label: "IT & Computing", badgeClass: "bg-cyan-50 text-cyan-700 border-cyan-200" },
-  VEHICLE: { label: "Vehicles & Transport", badgeClass: "bg-indigo-50 text-indigo-700 border-indigo-200" },
-  SAFETY_EQUIPMENT: { label: "Safety & PPE Assets", badgeClass: "bg-rose-50 text-rose-700 border-rose-200" },
-  FACILITY: { label: "Facility & Utilities", badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  OTHER: { label: "Other Asset", badgeClass: "bg-slate-50 text-slate-700 border-slate-200" }
+  MACHINERY: { label: "Machinery & Heavy Plant", badgeClass: "bg-[#EAF5FF] text-[#0878F9] border-[#D8E8FA]" },
+  TESTING_EQUIPMENT: { label: "Testing & Calibration", badgeClass: "bg-[#EAF5FF] text-[#0878F9] border-[#D8E8FA]" },
+  TOOLING: { label: "Tooling & Fixtures", badgeClass: "bg-[#F4F9FF] text-[#0B2148] border-[#D8E8FA]" },
+  FURNITURE: { label: "Furniture & Workstations", badgeClass: "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]" },
+  IT_HARDWARE: { label: "IT & Computing", badgeClass: "bg-[#EAF5FF] text-[#0878F9] border-[#D8E8FA]" },
+  VEHICLE: { label: "Vehicles & Transport", badgeClass: "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]" },
+  SAFETY_EQUIPMENT: { label: "Safety & PPE Assets", badgeClass: "bg-[#F4F9FF] text-[#0B2148] border-[#D8E8FA]" },
+  FACILITY: { label: "Facility & Utilities", badgeClass: "bg-[#EAF5FF] text-[#0878F9] border-[#D8E8FA]" },
+  OTHER: { label: "Other Asset", badgeClass: "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]" }
 };
 
 const STATUS_CONFIG: Record<AssetStatus, { label: string; dotClass: string; badgeClass: string }> = {
-  OPERATIONAL: { label: "Operational (Ready)", dotClass: "bg-emerald-500", badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  IN_USE: { label: "In Active Use", dotClass: "bg-blue-500", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" },
-  STANDBY: { label: "Standby / Storage", dotClass: "bg-cyan-500", badgeClass: "bg-cyan-50 text-cyan-700 border-cyan-200" },
-  UNDER_MAINTENANCE: { label: "Under Maintenance", dotClass: "bg-amber-500", badgeClass: "bg-amber-50 text-amber-700 border-amber-200" },
-  CALIBRATION_DUE: { label: "Calibration Due", dotClass: "bg-purple-500", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" },
-  RETIRED: { label: "Retired", dotClass: "bg-slate-400", badgeClass: "bg-slate-100 text-slate-600 border-slate-200" },
-  DISPOSED: { label: "Disposed", dotClass: "bg-red-400", badgeClass: "bg-red-50 text-red-600 border-red-200" }
+  OPERATIONAL: { label: "Operational (Ready)", dotClass: "bg-[#0878F9]", badgeClass: "bg-[#EAF5FF] text-[#0878F9] border-[#D8E8FA]" },
+  IN_USE: { label: "In Active Use", dotClass: "bg-[#0878F9]", badgeClass: "bg-[#EAF5FF] text-[#0878F9] border-[#D8E8FA]" },
+  STANDBY: { label: "Standby / Storage", dotClass: "bg-slate-400", badgeClass: "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]" },
+  UNDER_MAINTENANCE: { label: "Under Maintenance", dotClass: "bg-slate-500", badgeClass: "bg-[#F4F9FF] text-[#0B2148] border-[#D8E8FA]" },
+  CALIBRATION_DUE: { label: "Calibration Due", dotClass: "bg-slate-500", badgeClass: "bg-[#F4F9FF] text-[#0B2148] border-[#D8E8FA]" },
+  RETIRED: { label: "Retired", dotClass: "bg-slate-400", badgeClass: "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]" },
+  DISPOSED: { label: "Disposed", dotClass: "bg-slate-400", badgeClass: "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]" }
 };
 
 const CONDITION_CONFIG: Record<AssetCondition, { label: string; badgeClass: string }> = {
-  NEW: { label: "New (Factory Sealed)", badgeClass: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  EXCELLENT: { label: "Excellent", badgeClass: "bg-teal-50 text-teal-700 border-teal-200" },
-  GOOD: { label: "Good (Normal Service)", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" },
-  FAIR: { label: "Fair (Wear Visible)", badgeClass: "bg-amber-50 text-amber-700 border-amber-200" },
-  POOR: { label: "Poor (Needs Service)", badgeClass: "bg-orange-50 text-orange-700 border-orange-200" },
-  DAMAGED: { label: "Damaged / Inoperable", badgeClass: "bg-red-50 text-red-700 border-red-200" }
+  NEW: { label: "New (Factory Sealed)", badgeClass: "bg-[#EAF5FF] text-[#0878F9] border-[#D8E8FA]" },
+  EXCELLENT: { label: "Excellent", badgeClass: "bg-[#EAF5FF] text-[#0878F9] border-[#D8E8FA]" },
+  GOOD: { label: "Good (Normal Service)", badgeClass: "bg-[#EAF5FF] text-[#0878F9] border-[#D8E8FA]" },
+  FAIR: { label: "Fair (Wear Visible)", badgeClass: "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]" },
+  POOR: { label: "Poor (Needs Service)", badgeClass: "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]" },
+  DAMAGED: { label: "Damaged / Inoperable", badgeClass: "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]" }
 };
 
 const STANDARD_DEPARTMENTS = [
@@ -146,6 +147,7 @@ const STANDARD_DEPARTMENTS = [
 
 export default function CompanyAssetsConfigSection() {
   const queryClient = useQueryClient();
+  const { currencySymbol } = useFactoryFinancials();
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState("");
@@ -537,13 +539,13 @@ export default function CompanyAssetsConfigSection() {
           <div className="flex flex-wrap items-center gap-2">
             {/* Quick Mini Badges */}
             <div className="hidden xl:flex items-center gap-2 mr-2">
-              <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]">
                 {activeCount} Active
               </span>
-              <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+              <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-[#F4F9FF] text-[#526B91] border border-[#D8E8FA]">
                 {maintenanceCount} In Maintenance
               </span>
-              <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="px-2 py-1 rounded-lg text-[10px] font-semibold bg-[#F4F9FF] text-[#526B91] border border-[#D8E8FA]">
                 {inStorageCount} In Storage
               </span>
             </div>
@@ -664,7 +666,7 @@ export default function CompanyAssetsConfigSection() {
                     <td colSpan={9} className="px-6 py-12 text-center text-[#526B91] text-xs">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Wrench className="w-8 h-8 text-[#8A9EB5]/50" />
-                        <p className="font-semibold text-slate-700">No Company Assets Found</p>
+                        <p className="font-semibold text-[#0B2148]">No Company Assets Found</p>
                         <p className="text-[11px] text-[#8A9EB5] max-w-sm">
                           {searchTerm || categoryFilter !== "ALL" || statusFilter !== "ALL"
                             ? "No assets match your search or filter criteria. Try adjusting or resetting filters."
@@ -809,7 +811,7 @@ export default function CompanyAssetsConfigSection() {
                             <button
                               type="button"
                               onClick={() => handleOpenAssignModal(asset)}
-                              className="p-1 rounded-lg text-[#526B91] hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                              className="p-1 rounded-lg text-[#526B91] hover:text-[#0878F9] hover:bg-[#EAF5FF] transition-colors"
                               title="Assign / Transfer Asset"
                             >
                               <UserCheck className="w-3.5 h-3.5" />
@@ -819,7 +821,7 @@ export default function CompanyAssetsConfigSection() {
                             <button
                               type="button"
                               onClick={() => handleOpenMaintenanceModal(asset)}
-                              className="p-1 rounded-lg text-[#526B91] hover:text-purple-600 hover:bg-purple-50 transition-colors"
+                              className="p-1 rounded-lg text-[#526B91] hover:text-[#0878F9] hover:bg-[#EAF5FF] transition-colors"
                               title="Log Maintenance / Calibration"
                             >
                               <Wrench className="w-3.5 h-3.5" />
@@ -905,7 +907,7 @@ export default function CompanyAssetsConfigSection() {
                 <button
                   type="button"
                   onClick={() => setIsAssetModalOpen(false)}
-                  className="p-1 rounded-lg text-[#526B91] hover:text-[#0B2148] hover:bg-slate-100 transition-colors"
+                  className="p-1 rounded-lg text-[#526B91] hover:text-[#0B2148] hover:bg-[#F4F9FF] transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1088,7 +1090,7 @@ export default function CompanyAssetsConfigSection() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-[#0B2148] mb-1">Acquisition Cost (₹ INR)</label>
+                    <label className="block text-xs font-semibold text-[#0B2148] mb-1">Acquisition Cost ({currencySymbol})</label>
                     <input
                       type="number"
                       step="any"
@@ -1155,7 +1157,7 @@ export default function CompanyAssetsConfigSection() {
                   <button
                     type="button"
                     onClick={() => setIsAssetModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#526B91] hover:bg-slate-100 transition-colors"
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#526B91] hover:bg-[#F4F9FF] transition-colors"
                   >
                     Cancel
                   </button>
@@ -1193,9 +1195,9 @@ export default function CompanyAssetsConfigSection() {
               exit={{ scale: 0.95, opacity: 0, y: 10 }}
               className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-[#D8E8FA] overflow-hidden z-10"
             >
-              <div className="p-5 border-b border-[#D8E8FA] flex items-center justify-between bg-gradient-to-r from-emerald-50/50 to-white">
+              <div className="p-5 border-b border-[#D8E8FA] flex items-center justify-between bg-gradient-to-r from-[#EAF5FF] to-white">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
+                  <div className="w-8 h-8 rounded-lg bg-[#EAF5FF] border border-[#D8E8FA] flex items-center justify-center text-[#0878F9]">
                     <UserCheck className="w-4 h-4" />
                   </div>
                   <div>
@@ -1210,7 +1212,7 @@ export default function CompanyAssetsConfigSection() {
                 <button
                   type="button"
                   onClick={() => setIsAssignModalOpen(false)}
-                  className="p-1 rounded-lg text-[#526B91] hover:text-[#0B2148] hover:bg-slate-100 transition-colors"
+                  className="p-1 rounded-lg text-[#526B91] hover:text-[#0B2148] hover:bg-[#F4F9FF] transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1283,14 +1285,14 @@ export default function CompanyAssetsConfigSection() {
                   <button
                     type="button"
                     onClick={() => setIsAssignModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#526B91] hover:bg-slate-100 transition-colors"
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#526B91] hover:bg-[#F4F9FF] transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={assignAssetMutation.isPending}
-                    className="flex items-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                    className="flex items-center gap-1.5 px-5 py-2 bg-[#0878F9] hover:bg-[#0667DB] text-white rounded-xl text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
                   >
                     {assignAssetMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     <span>Confirm Assignment</span>
@@ -1321,9 +1323,9 @@ export default function CompanyAssetsConfigSection() {
               exit={{ scale: 0.95, opacity: 0, y: 10 }}
               className="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-[#D8E8FA] overflow-hidden z-10"
             >
-              <div className="p-5 border-b border-[#D8E8FA] flex items-center justify-between bg-gradient-to-r from-purple-50/50 to-white">
+              <div className="p-5 border-b border-[#D8E8FA] flex items-center justify-between bg-gradient-to-r from-[#EAF5FF]/60 to-white">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-600">
+                  <div className="w-8 h-8 rounded-lg bg-[#EAF5FF] border border-[#D8E8FA] flex items-center justify-center text-[#0878F9]">
                     <Wrench className="w-4 h-4" />
                   </div>
                   <div>
@@ -1338,7 +1340,7 @@ export default function CompanyAssetsConfigSection() {
                 <button
                   type="button"
                   onClick={() => setIsMaintenanceModalOpen(false)}
-                  className="p-1 rounded-lg text-[#526B91] hover:text-[#0B2148] hover:bg-slate-100 transition-colors"
+                  className="p-1 rounded-lg text-[#526B91] hover:text-[#0B2148] hover:bg-[#F4F9FF] transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1407,7 +1409,7 @@ export default function CompanyAssetsConfigSection() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-[#0B2148] mb-1">
-                      Maintenance Cost (₹ INR)
+                      Maintenance Cost ({currencySymbol})
                     </label>
                     <input
                       type="number"
@@ -1482,14 +1484,14 @@ export default function CompanyAssetsConfigSection() {
                   <button
                     type="button"
                     onClick={() => setIsMaintenanceModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#526B91] hover:bg-slate-100 transition-colors"
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#526B91] hover:bg-[#F4F9FF] transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={logMaintenanceMutation.isPending}
-                    className="flex items-center gap-1.5 px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                    className="flex items-center gap-1.5 px-5 py-2 bg-[#0878F9] hover:bg-[#0667DB] text-white rounded-xl text-xs font-bold shadow-xs transition-all disabled:opacity-50 cursor-pointer"
                   >
                     {logMaintenanceMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     <span>Record Maintenance</span>
@@ -1544,7 +1546,7 @@ export default function CompanyAssetsConfigSection() {
                 <button
                   type="button"
                   onClick={() => setIsDetailModalOpen(false)}
-                  className="p-1 rounded-lg text-[#526B91] hover:text-[#0B2148] hover:bg-slate-100 transition-colors"
+                  className="p-1 rounded-lg text-[#526B91] hover:text-[#0B2148] hover:bg-[#F4F9FF] transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1604,7 +1606,7 @@ export default function CompanyAssetsConfigSection() {
                     <div>
                       <p className="text-[10px] text-[#526B91] uppercase font-bold">Cost</p>
                       <p className="text-xs font-mono font-semibold text-[#0B2148] mt-0.5">
-                        {detailedAsset.purchaseCost ? `₹${detailedAsset.purchaseCost.toLocaleString()}` : "N/A"}
+                        {detailedAsset.purchaseCost ? formatMoneyWithSymbol(detailedAsset.purchaseCost, currencySymbol) : "N/A"}
                       </p>
                     </div>
                   </div>
@@ -1640,7 +1642,7 @@ export default function CompanyAssetsConfigSection() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <h4 className="text-xs font-bold text-[#0B2148] flex items-center gap-1.5">
-                        <Wrench className="w-3.5 h-3.5 text-purple-600" />
+                        <Wrench className="w-3.5 h-3.5 text-[#0878F9]" />
                         Maintenance & Calibration History ({detailedAsset.maintenanceRecords?.length || 0})
                       </h4>
                       <button
@@ -1649,14 +1651,14 @@ export default function CompanyAssetsConfigSection() {
                           setIsDetailModalOpen(false);
                           handleOpenMaintenanceModal(detailedAsset);
                         }}
-                        className="text-[11px] font-bold text-purple-600 hover:underline"
+                        className="text-[11px] font-bold text-[#0878F9] hover:underline"
                       >
                         + Log Maintenance Event
                       </button>
                     </div>
 
                     {!detailedAsset.maintenanceRecords || detailedAsset.maintenanceRecords.length === 0 ? (
-                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-[#526B91]">
+                      <div className="p-4 bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl text-center text-xs text-[#526B91]">
                         No maintenance or calibration recorded for this asset yet.
                       </div>
                     ) : (
@@ -1666,10 +1668,10 @@ export default function CompanyAssetsConfigSection() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-[#0B2148]">{rec.title}</span>
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]">
                                   {rec.type}
                                 </span>
-                                <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-100 text-slate-700">
+                                <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-[#F4F9FF] text-[#0B2148]">
                                   {rec.status}
                                 </span>
                               </div>
@@ -1680,9 +1682,9 @@ export default function CompanyAssetsConfigSection() {
                             {rec.description && (
                               <p className="text-[11px] text-[#526B91]">{rec.description}</p>
                             )}
-                            <div className="flex flex-wrap items-center gap-3 text-[10px] text-[#526B91] pt-1 border-t border-slate-100">
+                            <div className="flex flex-wrap items-center gap-3 text-[10px] text-[#526B91] pt-1 border-t border-[#D8E8FA]">
                               {rec.serviceProvider && <span>Provider: {rec.serviceProvider}</span>}
-                              {rec.cost && <span>Cost: ₹{rec.cost.toLocaleString()}</span>}
+                              {rec.cost && <span>Cost: {formatMoneyWithSymbol(rec.cost, currencySymbol)}</span>}
                               {rec.performedBy && <span>Audited By: {rec.performedBy.name}</span>}
                             </div>
                           </div>
@@ -1694,12 +1696,12 @@ export default function CompanyAssetsConfigSection() {
                   {/* Assignment History Timeline */}
                   <div>
                     <h4 className="text-xs font-bold text-[#0B2148] flex items-center gap-1.5 mb-2">
-                      <History className="w-3.5 h-3.5 text-emerald-600" />
+                      <History className="w-3.5 h-3.5 text-[#0878F9]" />
                       Custodian Assignment Timeline ({detailedAsset.assignmentRecords?.length || 0})
                     </h4>
 
                     {!detailedAsset.assignmentRecords || detailedAsset.assignmentRecords.length === 0 ? (
-                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-[#526B91]">
+                      <div className="p-4 bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl text-center text-xs text-[#526B91]">
                         No historical custodian reassignments logged.
                       </div>
                     ) : (
@@ -1731,11 +1733,11 @@ export default function CompanyAssetsConfigSection() {
                 </div>
               )}
 
-              <div className="p-4 border-t border-[#D8E8FA] bg-slate-50 flex items-center justify-end">
+              <div className="p-4 border-t border-[#D8E8FA] bg-[#F4F9FF] flex items-center justify-end">
                 <button
                   type="button"
                   onClick={() => setIsDetailModalOpen(false)}
-                  className="px-4 py-2 bg-white border border-[#D8E8FA] hover:bg-slate-100 text-[#0B2148] rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-white border border-[#D8E8FA] hover:bg-[#F4F9FF] text-[#0B2148] rounded-xl text-xs font-bold transition-colors cursor-pointer"
                 >
                   Close Record
                 </button>

@@ -316,7 +316,7 @@ export const QuotationCreateSchema = z.object({
   leadId: z.string().uuid().optional().nullable(),
   assignedSalesUserId: z.string().uuid().optional().nullable(),
   validUntil: z.string().min(1, "Validity expiry date is required"), // expect YYYY-MM-DD
-  currency: z.string().default("INR"),
+  currency: z.string().default("ZMW"),
   freight: z.number().nonnegative("Freight charges must be non-negative").optional().default(0),
   additionalCharges: z.number().nonnegative("Additional charges must be non-negative").default(0),
   paymentTerms: z.string().min(1, "Payment terms are required"),
@@ -447,7 +447,7 @@ export const PurchaseOrderCreateSchema = z.object({
   projectRef: z.string().optional().nullable(),
   paxTypeId: z.string().uuid().optional().nullable(),
   expectedDeliveryDate: z.string().min(1),
-  currency: z.string().default("INR"),
+  currency: z.string().default("ZMW"),
   additionalCharges: z.number().nonnegative().default(0),
   paymentTerms: z.string().min(1),
   deliveryTerms: z.string().min(1),
@@ -553,7 +553,7 @@ export const InvoiceOrderCreateSchema = z.object({
   supplierInvoiceNumber: z.string().min(1, "Vendor Invoice Number is required"),
   invoiceType: z.enum(["PROFORMA", "FINAL_TAX_INVOICE", "CREDIT_NOTE", "DEBIT_NOTE"]).default("FINAL_TAX_INVOICE"),
   invoiceDate: z.string().optional(),
-  currency: z.string().default("INR"),
+  currency: z.string().default("ZMW"),
   additionalCharges: z.number().min(0).optional().default(0),
   paymentMode: z.enum(["CREDIT", "PAID", "PARTIALLY_PAID"]).default("CREDIT"),
   paymentMethod: z.string().optional().nullable(),
@@ -739,7 +739,7 @@ export const InvoiceCreateSchema = z.object({
   salesOrderId: z.string().uuid().optional().nullable(),
   dispatchOrderId: z.string().uuid().optional().nullable(),
   dueDate: z.string(),
-  currency: z.string().default("INR"),
+  currency: z.string().default("ZMW"),
   additionalCharges: z.number().nonnegative().default(0),
   paymentTerms: z.string().optional().nullable(),
   billingAddressSnapshot: z.string().optional().nullable(),
@@ -964,6 +964,13 @@ export const FinancialSettingsUpdateSchema = z.object({
   defaultShippingCarrier: z.string().optional().default("Standard Road Logistics"),
   shippingTaxRate: z.number().min(0).max(100, "Shipping tax rate must be between 0 and 100").optional().default(18),
   estimatedDeliveryLeadDays: z.number().int().min(0, "Lead days must be non-negative").optional().default(3),
+  // Company Bank & Settlement Account Details
+  bankName: z.string().optional().nullable().default(""),
+  accountName: z.string().optional().nullable().default(""),
+  accountNumber: z.string().optional().nullable().default(""),
+  branch: z.string().optional().nullable().default(""),
+  swiftCode: z.string().optional().nullable().default(""),
+  bankDetails: z.string().optional().nullable().default(""),
 });
 
 export const FactoryDefaultsUpdateSchema = z.object({

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { 
   Building2, 
+  Landmark,
   Layers, 
   Battery, 
   DollarSign, 
@@ -54,24 +55,9 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import CompanyAssetsConfigSection from "./CompanyAssetsConfigSection";
 import ConfirmDeleteDialog from "@/components/ui/ConfirmDeleteDialog";
+import { getCurrencySymbol, formatMoneyWithSymbol } from "@/hooks/useFactoryFinancials";
 
-export const getCurrencySymbol = (currency: string) => {
-  switch (currency?.toUpperCase()) {
-    case "ZMW":
-      return "ZK";
-    case "USD":
-      return "$";
-    case "EUR":
-      return "€";
-    case "GBP":
-      return "£";
-    case "ZAR":
-      return "R";
-    case "INR":
-    default:
-      return "₹";
-  }
-};
+export { getCurrencySymbol, formatMoneyWithSymbol };
 
 
 const DEFAULT_PRESET_CATEGORIES = [
@@ -289,17 +275,26 @@ export default function FactorySettingsTab() {
     defaultAdvancePercentage: 100,
     defaultFreightAmount: 0,
     defaultHandlingCharge: 0,
-    defaultTaxRate: 18,
+    defaultTaxRate: 16,
     defaultQuotationValidityDays: 30,
-    defaultCurrency: "INR",
+    defaultCurrency: "ZMW",
     minimumOrderValue: 0,
     // Shipping & Logistics Charge Configuration
     shippingCalculationMethod: "FLAT_RATE",
     freeShippingThreshold: 0,
     defaultShippingCarrier: "Standard Road Logistics",
-    shippingTaxRate: 18,
-    estimatedDeliveryLeadDays: 3
+    shippingTaxRate: 16,
+    estimatedDeliveryLeadDays: 3,
+    bankName: "",
+    accountName: "",
+    accountNumber: "",
+    branch: "",
+    swiftCode: "",
+    bankDetails: ""
   });
+
+  const [isCustomTaxRate, setIsCustomTaxRate] = useState(false);
+  const [isCustomShippingTaxRate, setIsCustomShippingTaxRate] = useState(false);
 
   // Factory Defaults Form State
   const [defaultsForm, setDefaultsForm] = useState({
@@ -354,6 +349,10 @@ export default function FactorySettingsTab() {
   // Active production model in factory
   const activeProductionPax = (paxTypes || []).find((p: any) => p.isProductionActive);
 
+  // Dynamically synchronized operating currency symbol across all factory views & modals
+  const activeCurrencyCode = financialForm.defaultCurrency || financialSettings?.defaultCurrency || "ZMW";
+  const activeCurrencySymbol = getCurrencySymbol(activeCurrencyCode);
+
   // Calculate Combined Available Categories (Strictly non-cell materials, excluding deleted categories)
   const allAvailableCategories = useMemo(() => {
     const raw = Array.from(
@@ -370,20 +369,31 @@ export default function FactorySettingsTab() {
   // Sync Financial Settings Query
   useEffect(() => {
     if (financialSettings) {
+      const tax = Number(financialSettings.defaultTaxRate ?? 16);
+      const shipTax = Number(financialSettings.shippingTaxRate ?? tax);
+      setIsCustomTaxRate(![16, 0, 5].includes(tax));
+      setIsCustomShippingTaxRate(![16, 0, 5].includes(shipTax));
+
       setFinancialForm({
         defaultPaymentTerms: financialSettings.defaultPaymentTerms || "100% Advance",
         defaultAdvancePercentage: financialSettings.defaultAdvancePercentage ?? 100,
         defaultFreightAmount: financialSettings.defaultFreightAmount ?? 0,
         defaultHandlingCharge: financialSettings.defaultHandlingCharge ?? 0,
-        defaultTaxRate: financialSettings.defaultTaxRate ?? 18,
+        defaultTaxRate: tax,
         defaultQuotationValidityDays: financialSettings.defaultQuotationValidityDays ?? 30,
-        defaultCurrency: financialSettings.defaultCurrency || "INR",
+        defaultCurrency: financialSettings.defaultCurrency || "ZMW",
         minimumOrderValue: financialSettings.minimumOrderValue ?? 0,
         shippingCalculationMethod: financialSettings.shippingCalculationMethod || "FLAT_RATE",
         freeShippingThreshold: financialSettings.freeShippingThreshold ?? 0,
         defaultShippingCarrier: financialSettings.defaultShippingCarrier || "Standard Road Logistics",
-        shippingTaxRate: financialSettings.shippingTaxRate ?? financialSettings.defaultTaxRate ?? 18,
-        estimatedDeliveryLeadDays: financialSettings.estimatedDeliveryLeadDays ?? 3
+        shippingTaxRate: shipTax,
+        estimatedDeliveryLeadDays: financialSettings.estimatedDeliveryLeadDays ?? 3,
+        bankName: (financialSettings as any).bankName || "",
+        accountName: (financialSettings as any).accountName || "",
+        accountNumber: (financialSettings as any).accountNumber || "",
+        branch: (financialSettings as any).branch || "",
+        swiftCode: (financialSettings as any).swiftCode || "",
+        bankDetails: (financialSettings as any).bankDetails || ""
       });
     }
   }, [financialSettings]);
@@ -680,6 +690,8 @@ export default function FactorySettingsTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-factory-financial"] });
       queryClient.invalidateQueries({ queryKey: ["admin-factory-overview"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-list"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-dashboard"] });
       toast.success("Factory financial settings saved");
     },
     onError: (err: any) => {
@@ -694,20 +706,28 @@ export default function FactorySettingsTab() {
       queryClient.invalidateQueries({ queryKey: ["admin-factory-financial"] });
       queryClient.invalidateQueries({ queryKey: ["admin-factory-overview"] });
       if (res?.data) {
+        setIsCustomTaxRate(false);
+        setIsCustomShippingTaxRate(false);
         setFinancialForm({
           defaultPaymentTerms: res.data.defaultPaymentTerms || "100% Advance",
           defaultAdvancePercentage: res.data.defaultAdvancePercentage ?? 100,
           defaultFreightAmount: res.data.defaultFreightAmount ?? 0,
           defaultHandlingCharge: res.data.defaultHandlingCharge ?? 0,
-          defaultTaxRate: res.data.defaultTaxRate ?? 18,
+          defaultTaxRate: res.data.defaultTaxRate ?? 16,
           defaultQuotationValidityDays: res.data.defaultQuotationValidityDays ?? 30,
-          defaultCurrency: res.data.defaultCurrency || "INR",
+          defaultCurrency: res.data.defaultCurrency || "ZMW",
           minimumOrderValue: res.data.minimumOrderValue ?? 0,
           shippingCalculationMethod: res.data.shippingCalculationMethod || "FLAT_RATE",
           freeShippingThreshold: res.data.freeShippingThreshold ?? 0,
           defaultShippingCarrier: res.data.defaultShippingCarrier || "Standard Road Logistics",
-          shippingTaxRate: res.data.shippingTaxRate ?? 18,
-          estimatedDeliveryLeadDays: res.data.estimatedDeliveryLeadDays ?? 3
+          shippingTaxRate: res.data.shippingTaxRate ?? 16,
+          estimatedDeliveryLeadDays: res.data.estimatedDeliveryLeadDays ?? 3,
+          bankName: res.data.bankName || "",
+          accountName: res.data.accountName || "",
+          accountNumber: res.data.accountNumber || "",
+          branch: res.data.branch || "",
+          swiftCode: res.data.swiftCode || "",
+          bankDetails: res.data.bankDetails || ""
         });
       }
       toast.success("Financial defaults reset to system standards");
@@ -1319,7 +1339,7 @@ export default function FactorySettingsTab() {
         <div className="flex items-center justify-between px-1 border-b border-[#EAF2FC] pb-1.5 text-xs">
           <div className="flex items-center gap-1.5 text-[#526B91]">
             <GripVertical className="w-3.5 h-3.5 text-[#0878F9]" />
-            <span className="font-semibold text-slate-700">Factory Navigation</span>
+            <span className="font-semibold text-[#0B2148]">Factory Navigation</span>
             <span className="text-[11px] text-[#526B91]/80 hidden sm:inline">• Drag tabs horizontally to re-align menus</span>
           </div>
           {isCustomOrder && (
@@ -1360,7 +1380,7 @@ export default function FactorySettingsTab() {
                     ? "ring-2 ring-[#0878F9] bg-[#EAF5FF] border-[#0878F9] scale-105"
                     : isCurrent 
                     ? "bg-[#EAF5FF] text-[#0878F9] border border-[#0878F9]/40 shadow-2xs font-bold" 
-                    : "bg-white text-[#526B91] hover:text-[#0878F9] hover:bg-[#F4F9FF] border border-slate-200/70"
+                    : "bg-white text-[#526B91] hover:text-[#0878F9] hover:bg-[#F4F9FF] border border-[#D8E8FA]"
                 }`}
               >
                 {/* Floating Hover Tooltip */}
@@ -1374,7 +1394,7 @@ export default function FactorySettingsTab() {
                 </div>
 
                 {/* Grip Handle */}
-                <GripVertical className="w-3 h-3 text-slate-300 group-hover:text-[#0878F9] shrink-0 -mr-0.5 transition-colors" />
+                <GripVertical className="w-3 h-3 text-[#526B91] group-hover:text-[#0878F9] shrink-0 -mr-0.5 transition-colors" />
 
                 <Icon className={`w-3.5 h-3.5 flex-shrink-0 transition-colors ${isCurrent ? "text-[#0878F9]" : "text-[#526B91] group-hover:text-[#0878F9]"}`} />
                 <span>{sec.label}</span>
@@ -1402,18 +1422,18 @@ export default function FactorySettingsTab() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel rounded-2xl border overflow-hidden shadow-sm"
         >
-          <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-5 border-b border-[#D8E8FA] flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148] flex items-center gap-2">
+                <h3 className="text-base font-bold text-[#0B2148] flex items-center gap-2">
                   <Cpu className="w-4 h-4 text-blue-600" />
                   Production Product Models & Specs
                 </h3>
-                <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 rounded-md text-[11px] font-mono font-semibold border border-blue-200 dark:border-blue-800">
+                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md text-[11px] font-mono font-semibold border border-blue-200">
                   {paxTypes?.length || 0} Models
                 </span>
               </div>
-              <p className="text-xs text-[#526B91] dark:text-[#526B91] mt-0.5">
+              <p className="text-xs text-[#526B91] mt-0.5">
                 Define and configure battery pack product models, cell series counts, capacity (Ah) bands, IR tolerance limits, and active factory production specifications.
               </p>
             </div>
@@ -1427,7 +1447,7 @@ export default function FactorySettingsTab() {
                   value={paxSearch}
                   onChange={(e) => setPaxSearch(e.target.value)}
                   placeholder="Search model, cells, grade..."
-                  className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 pl-8 pr-3 text-xs text-slate-900 dark:text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-1.5 pl-8 pr-3 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
 
@@ -1443,30 +1463,30 @@ export default function FactorySettingsTab() {
           </div>
 
           {/* Active Production Model Banner */}
-          <div className="px-5 py-3.5 bg-slate-50/80 dark:bg-white border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="px-5 py-3.5 bg-[#F4F9FF] border-b border-[#D8E8FA] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className={`w-8 h-8 rounded-xl flex items-center justify-center border ${
                 activeProductionPax 
-                  ? "bg-emerald-500 text-white border-emerald-400 shadow-sm shadow-emerald-500/20" 
-                  : "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800"
+                  ? "bg-[#0878F9] text-white border-[#0878F9] shadow-sm shadow-blue-500/20" 
+                  : "bg-[#F4F9FF] text-[#526B91] border-[#D8E8FA]"
               }`}>
                 {activeProductionPax ? <Factory className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-900 dark:text-[#0B2148] flex items-center gap-2">
+                <p className="text-xs font-bold text-[#0B2148] flex items-center gap-2">
                   <span>Factory Active Production Model:</span>
                   {activeProductionPax ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-[#166534] text-[11px] font-mono font-bold border border-emerald-200 dark:border-emerald-800">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#EAF5FF] text-[#0878F9] text-[11px] font-mono font-bold border border-[#D8E8FA]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#0878F9] animate-pulse" />
                       {activeProductionPax.name} ({activeProductionPax.cellCount}S • {activeProductionPax.ahMin}-{activeProductionPax.ahMax} Ah)
                     </span>
                   ) : (
-                    <span className="text-amber-700 dark:text-amber-400 font-semibold text-xs">
+                    <span className="text-[#526B91] font-semibold text-xs">
                       No active model selected (Using Global QC Fallback)
                     </span>
                   )}
                 </p>
-                <p className="text-[11px] text-[#526B91] dark:text-[#526B91]">
+                <p className="text-[11px] text-[#526B91]">
                   {activeProductionPax 
                     ? "Inward cell QC grading, clustering delta checks, and automatic pack pairing are strictly bound to this model."
                     : "Activate any model below to enforce strict product tolerances during cell testing and assembly."}
@@ -1479,7 +1499,7 @@ export default function FactorySettingsTab() {
                 type="button"
                 onClick={() => clearProductionActiveMutation.mutate()}
                 disabled={clearProductionActiveMutation.isPending}
-                className="self-start sm:self-center text-xs font-medium text-[#526B91] dark:text-[#526B91] hover:text-red-600 dark:hover:text-red-400 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-red-300 transition-all cursor-pointer whitespace-nowrap"
+                className="self-start sm:self-center text-xs font-medium text-[#526B91] hover:text-red-600 px-3 py-1.5 rounded-lg border border-[#D8E8FA] hover:border-red-300 transition-all cursor-pointer whitespace-nowrap"
               >
                 {clearProductionActiveMutation.isPending ? "Clearing..." : "Switch to Global Fallback"}
               </button>
@@ -1495,27 +1515,27 @@ export default function FactorySettingsTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-50/80 dark:bg-white border-b border-slate-200 dark:border-slate-800">
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91] w-14 text-center">S.No</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Product Model / Name</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Cell Part # / Chemistry</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">BOM Connection</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Standard Price (₹)</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Cell Topology</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Capacity Band (Ah)</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">IR Limits (mΩ)</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Allowed Grades</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Production Status</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91] text-right">Actions</th>
+                  <tr className="bg-[#F4F9FF] border-b border-[#D8E8FA]">
+                    <th className="px-4 py-3 font-semibold text-[#526B91] w-14 text-center">S.No</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Product Model / Name</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Cell Part # / Chemistry</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">BOM Connection</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Standard Price ({activeCurrencySymbol})</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Cell Topology</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Capacity Band (Ah)</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">IR Limits (mΩ)</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Allowed Grades</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Production Status</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91] text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                <tbody className="divide-y divide-[#D8E8FA]">
                   {filteredPaxTypes.length === 0 ? (
                     <tr>
                       <td colSpan={11} className="px-6 py-12 text-center text-[#526B91] text-xs">
                         <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
-                          <Cpu className="w-8 h-8 text-[#0B2148] dark:text-[#526B91]" />
-                          <p className="font-semibold text-slate-700 dark:text-[#0B2148]">
+                          <Cpu className="w-8 h-8 text-[#0B2148]" />
+                          <p className="font-semibold text-[#0B2148]">
                             {paxSearch ? "No production models match your search query." : "No product models configured yet."}
                           </p>
                           <p className="text-[11px] text-[#526B91]">
@@ -1543,8 +1563,8 @@ export default function FactorySettingsTab() {
                           key={pax.id} 
                           className={`transition-colors ${
                             isActive 
-                              ? "bg-emerald-50/40 dark:bg-emerald-950/10 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/20" 
-                              : "hover:bg-slate-50/60 dark:hover:bg-slate-800/40"
+                              ? "bg-[#EAF5FF]/40 hover:bg-[#EAF5FF]/60" 
+                              : "hover:bg-[#F4F9FF]"
                           }`}
                         >
                           {/* Serial Number */}
@@ -1555,16 +1575,16 @@ export default function FactorySettingsTab() {
                           {/* Model Identity */}
                           <td className="px-5 py-3.5">
                             <div className="flex items-center gap-2">
-                              <p className="font-bold text-slate-900 dark:text-[#0B2148] font-mono text-[13px]">{pax.name}</p>
+                              <p className="font-bold text-[#0B2148] font-mono text-[13px]">{pax.name}</p>
                               {isActive && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-[#166534] text-[10px] font-bold border border-emerald-300 dark:border-emerald-800">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#EAF5FF] text-[#0878F9] text-[10px] font-bold border border-[#D8E8FA]">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-[#0878F9]" />
                                   ACTIVE
                                 </span>
                               )}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-semibold text-[#526B91] dark:text-[#0B2148]">
+                              <span className="px-1.5 py-0.2 rounded bg-[#F4F9FF] text-[10px] font-mono font-semibold text-[#526B91]">
                                 {pax.configuration || `${pax.cellCount}S1P`}
                               </span>
                               <span className="text-[10px] text-[#526B91] font-mono">
@@ -1582,8 +1602,8 @@ export default function FactorySettingsTab() {
                           <td className="px-5 py-3.5">
                             {pax.cellPartNumber ? (
                               <div>
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-[11px] font-mono font-bold border border-blue-200 dark:border-blue-800">
-                                  <Battery className="w-3 h-3 text-blue-500" />
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#EAF5FF] text-[#0878F9] text-[11px] font-mono font-bold border border-[#D8E8FA]">
+                                  <Battery className="w-3 h-3 text-[#0878F9]" />
                                   {pax.cellPartNumber}
                                 </span>
                                 <p className="text-[10px] text-[#526B91] font-mono mt-0.5">
@@ -1600,8 +1620,8 @@ export default function FactorySettingsTab() {
                             {linkedBom || pax.bomNumber ? (
                               <div className="space-y-1">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-[11px] font-mono font-bold border border-purple-200 dark:border-purple-800">
-                                    <Component className="w-3 h-3 text-purple-500 inline mr-1" />
+                                  <span className="px-2 py-0.5 rounded-lg bg-[#EAF5FF] text-[#0878F9] text-[11px] font-mono font-bold border border-[#D8E8FA]">
+                                    <Component className="w-3 h-3 text-[#0878F9] inline mr-1" />
                                     {pax.bomNumber || linkedBom?.name || "BOM Linked"}
                                   </span>
                                 </div>
@@ -1609,7 +1629,7 @@ export default function FactorySettingsTab() {
                                   <button
                                     type="button"
                                     onClick={() => setPreviewBomModalItem(linkedBom)}
-                                    className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 cursor-pointer"
+                                    className="text-[10px] font-semibold text-[#0878F9] hover:underline flex items-center gap-1 cursor-pointer"
                                   >
                                     <Eye className="w-3 h-3" />
                                     {bomItemsCount} Kit Components
@@ -1623,23 +1643,23 @@ export default function FactorySettingsTab() {
 
                           {/* Standard Price */}
                           <td className="px-5 py-3.5">
-                            <span className="font-mono font-bold text-emerald-600 dark:text-[#166534] text-xs">
-                              ₹{Number(pax.unitPrice || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <span className="font-mono font-bold text-[#0B2148] text-xs">
+                              {formatMoneyWithSymbol(pax.unitPrice, activeCurrencySymbol)}
                             </span>
                             <p className="text-[10px] text-[#526B91] font-mono">per pack</p>
                           </td>
 
                           {/* Cell Topology */}
                           <td className="px-5 py-3.5">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-[#0B2148] border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold">
-                              <Battery className="w-3 h-3 text-blue-500" />
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#F4F9FF] text-[#0B2148] border border-[#D8E8FA] rounded-lg text-xs font-mono font-bold">
+                              <Battery className="w-3 h-3 text-[#0878F9]" />
                               {pax.cellCount}S ({pax.cellCount} Cells)
                             </span>
                           </td>
 
                           {/* Capacity Band */}
                           <td className="px-5 py-3.5">
-                            <p className="font-mono font-bold text-slate-800 dark:text-[#0B2148]">
+                            <p className="font-mono font-bold text-[#0B2148]">
                               {pax.ahMin} – {pax.ahMax} Ah
                             </p>
                             <p className="text-[10px] text-[#526B91] font-mono">
@@ -1649,7 +1669,7 @@ export default function FactorySettingsTab() {
 
                           {/* IR Limits */}
                           <td className="px-5 py-3.5">
-                            <p className="font-mono font-bold text-slate-800 dark:text-[#0B2148]">
+                            <p className="font-mono font-bold text-[#0B2148]">
                               {pax.irMin} – {pax.irMax} mΩ
                             </p>
                             <p className="text-[10px] text-[#526B91] font-mono">
@@ -1663,7 +1683,7 @@ export default function FactorySettingsTab() {
                               {(pax.allowedGrades || []).map((grade: string) => (
                                 <span 
                                   key={grade}
-                                  className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60 rounded text-[10px] font-mono font-bold"
+                                  className="px-1.5 py-0.5 bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA] rounded text-[10px] font-mono font-bold"
                                 >
                                   {grade}
                                 </span>
@@ -1674,8 +1694,8 @@ export default function FactorySettingsTab() {
                           {/* Production Status */}
                           <td className="px-5 py-3.5">
                             {isActive ? (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-[#166534] text-[11px] font-bold border border-emerald-300 dark:border-emerald-800">
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-[#166534]" />
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#EAF5FF] text-[#0878F9] text-[11px] font-bold border border-[#D8E8FA]">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-[#0878F9]" />
                                 In Production
                               </span>
                             ) : (
@@ -1683,9 +1703,9 @@ export default function FactorySettingsTab() {
                                 type="button"
                                 onClick={() => setProductionActiveMutation.mutate(pax.id)}
                                 disabled={setProductionActiveMutation.isPending}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-[#526B91] dark:text-[#0B2148] hover:text-emerald-700 dark:hover:text-[#166534] text-[11px] font-semibold border border-slate-200 dark:border-slate-700 hover:border-emerald-300 transition-all cursor-pointer"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F4F9FF] hover:bg-[#EAF5FF] text-[#526B91] hover:text-[#0878F9] text-[11px] font-semibold border border-[#D8E8FA] hover:border-[#D8E8FA] transition-all cursor-pointer"
                               >
-                                <Star className="w-3 h-3 text-[#526B91] hover:text-amber-500" />
+                                <Star className="w-3 h-3 text-[#526B91] hover:text-[#0878F9]" />
                                 Set Active
                               </button>
                             )}
@@ -1698,7 +1718,7 @@ export default function FactorySettingsTab() {
                                 <button
                                   type="button"
                                   onClick={() => setPreviewBomModalItem(linkedBom)}
-                                  className="p-1.5 text-[#526B91] hover:text-purple-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                  className="p-1.5 text-[#526B91] hover:text-[#0878F9] rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                                   title="View BOM Components"
                                 >
                                   <Component className="w-3.5 h-3.5" />
@@ -1707,7 +1727,7 @@ export default function FactorySettingsTab() {
                               <button
                                 type="button"
                                 onClick={() => handleOpenPaxModal(pax)}
-                                className="p-1.5 text-[#526B91] hover:text-blue-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                className="p-1.5 text-[#526B91] hover:text-blue-600 rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                                 title="Edit Production Model & BOM Link"
                               >
                                 <Edit className="w-3.5 h-3.5" />
@@ -1727,7 +1747,7 @@ export default function FactorySettingsTab() {
                                     }
                                   });
                                 }}
-                                className="p-1.5 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                                className="p-1.5 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                                 title="Delete Model"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1755,20 +1775,20 @@ export default function FactorySettingsTab() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel rounded-2xl border overflow-hidden shadow-sm"
         >
-          <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-5 border-b border-[#D8E8FA] flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                <div className="w-8 h-8 rounded-xl bg-[#0878F9] text-white flex items-center justify-center shadow-xs">
                   <Component className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148] flex items-center gap-2">
+                  <h3 className="text-base font-bold text-[#0B2148] flex items-center gap-2">
                     BOM Master Templates & Kit Recipes
-                    <span className="px-2 py-0.5 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 rounded-md text-[11px] font-mono font-semibold border border-purple-200 dark:border-purple-800">
+                    <span className="px-2 py-0.5 bg-[#EAF5FF] text-[#0878F9] rounded-md text-[11px] font-mono font-semibold border border-[#D8E8FA]">
                       {bomsList?.length || 0} Registered
                     </span>
                   </h3>
-                  <p className="text-xs text-[#526B91] dark:text-[#526B91] mt-0.5">
+                  <p className="text-xs text-[#526B91] mt-0.5">
                     Configure standardized Bill of Materials (BOM) recipes with exact non-cell raw materials, busbars, BMS, harnesses, and quantities per battery pack.
                   </p>
                 </div>
@@ -1784,14 +1804,14 @@ export default function FactorySettingsTab() {
                   value={bomSearch}
                   onChange={(e) => setBomSearch(e.target.value)}
                   placeholder="Search BOM drawing, material SKU..."
-                  className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 pl-8 pr-3 text-xs text-slate-900 dark:text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600"
+                  className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-1.5 pl-8 pr-3 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9]"
                 />
               </div>
 
               <button 
                 type="button"
                 onClick={() => handleOpenBomModal(null)}
-                className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 px-4 py-1.5 rounded-xl text-white font-semibold text-xs transition-all shadow-sm cursor-pointer"
+                className="flex items-center gap-1.5 bg-[#0878F9] hover:bg-[#0667DB] px-4 py-1.5 rounded-xl text-white font-semibold text-xs transition-all shadow-sm cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Register BOM Template
@@ -1802,11 +1822,11 @@ export default function FactorySettingsTab() {
           {/* BOM Cards Grid */}
           <div className="p-5">
             {filteredBoms.length === 0 ? (
-              <div className="py-12 flex flex-col items-center justify-center text-center p-6 bg-slate-50/50 dark:bg-white border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
-                <div className="w-14 h-14 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center mb-3.5 border border-purple-200 dark:border-purple-800/60 shadow-xs">
+              <div className="py-12 flex flex-col items-center justify-center text-center p-6 bg-[#F4F9FF] border border-dashed border-[#D8E8FA] rounded-2xl">
+                <div className="w-14 h-14 rounded-2xl bg-[#EAF5FF] text-[#0878F9] flex items-center justify-center mb-3.5 border border-[#D8E8FA] shadow-xs">
                   <Component className="w-7 h-7" />
                 </div>
-                <h4 className="text-sm font-bold text-slate-900 dark:text-[#0B2148]">
+                <h4 className="text-sm font-bold text-[#0B2148]">
                   {bomsList?.length === 0 ? "No BOM Master Templates Registered" : "No Matching BOM Templates"}
                 </h4>
                 <p className="text-xs text-[#526B91] max-w-md mt-1 mb-4">
@@ -1817,7 +1837,7 @@ export default function FactorySettingsTab() {
                 <button
                   type="button"
                   onClick={() => handleOpenBomModal(null)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-sm transition-all cursor-pointer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0878F9] hover:bg-[#0667DB] text-white font-semibold text-xs shadow-sm transition-all cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
                   Register First BOM Template
@@ -1832,16 +1852,16 @@ export default function FactorySettingsTab() {
                   return (
                     <div 
                       key={bom.id}
-                      className="p-4.5 rounded-2xl bg-white dark:bg-white border border-slate-200 dark:border-slate-800 hover:border-purple-400/60 dark:hover:border-purple-600/60 transition-all shadow-xs flex flex-col justify-between group"
+                      className="p-4.5 rounded-2xl bg-white border border-[#D8E8FA] hover:border-[#0878F9]/40 transition-all shadow-xs flex flex-col justify-between group"
                     >
                       <div className="space-y-3">
                         {/* Top Badge & Actions */}
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-md bg-purple-100 text-purple-700 font-mono font-bold text-xs flex items-center justify-center border border-purple-200 shrink-0">
+                            <span className="w-6 h-6 rounded-md bg-[#EAF5FF] text-[#0878F9] font-mono font-bold text-xs flex items-center justify-center border border-[#D8E8FA] shrink-0">
                               #{idx + 1}
                             </span>
-                            <span className="px-2.5 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-mono font-bold text-xs border border-purple-200 dark:border-purple-800/80">
+                            <span className="px-2.5 py-1 rounded-lg bg-[#EAF5FF] text-[#0878F9] font-mono font-bold text-xs border border-[#D8E8FA]">
                               {bom.name}
                             </span>
                           </div>
@@ -1850,7 +1870,7 @@ export default function FactorySettingsTab() {
                             <button
                               type="button"
                               onClick={() => setPreviewBomModalItem(bom)}
-                              className="p-1.5 text-[#526B91] hover:text-purple-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-[#526B91] hover:text-[#0878F9] rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                               title="Preview Components"
                             >
                               <Eye className="w-3.5 h-3.5" />
@@ -1858,7 +1878,7 @@ export default function FactorySettingsTab() {
                             <button
                               type="button"
                               onClick={() => handleOpenBomModal(bom)}
-                              className="p-1.5 text-[#526B91] hover:text-blue-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-[#526B91] hover:text-blue-600 rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                               title="Edit BOM"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -1878,7 +1898,7 @@ export default function FactorySettingsTab() {
                                   }
                                 });
                               }}
-                              className="p-1.5 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                               title="Delete BOM"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1888,7 +1908,7 @@ export default function FactorySettingsTab() {
 
                         {/* Description */}
                         {bom.description ? (
-                          <p className="text-xs text-[#526B91] dark:text-[#0B2148] line-clamp-2">
+                          <p className="text-xs text-[#526B91] line-clamp-2">
                             {bom.description}
                           </p>
                         ) : (
@@ -1907,7 +1927,7 @@ export default function FactorySettingsTab() {
                               {linkedModels.map((m: any) => (
                                 <span 
                                   key={m.id}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-mono text-[10px] font-bold border border-blue-200 dark:border-blue-800/60"
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-mono text-[10px] font-bold border border-blue-200"
                                 >
                                   <Cpu className="w-2.5 h-2.5 text-blue-500" />
                                   {m.name}
@@ -1920,27 +1940,27 @@ export default function FactorySettingsTab() {
                         </div>
 
                         {/* Components Breakdown */}
-                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/80 space-y-1.5">
-                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-[#0B2148]">
+                        <div className="pt-2 border-t border-[#D8E8FA] space-y-1.5">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-[#0B2148]">
                             <span>Kit Components ({bom.items?.length || 0} materials)</span>
-                            <span className="font-mono text-purple-600 dark:text-purple-400">{totalPartsCount} Total Parts</span>
+                            <span className="font-mono text-[#0878F9]">{totalPartsCount} Total Parts</span>
                           </div>
                           
                           <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
                             {(bom.items || []).slice(0, 4).map((item: any, idx: number) => (
                               <div 
                                 key={idx} 
-                                className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 text-[11px]"
+                                className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[#F4F9FF] border border-[#D8E8FA] text-[11px]"
                               >
                                 <div className="truncate mr-2">
-                                  <p className="font-semibold text-slate-800 dark:text-[#0B2148] truncate">
+                                  <p className="font-semibold text-[#0B2148] truncate">
                                     {item.material?.name || `Material #${item.materialId?.slice(0, 8)}`}
                                   </p>
                                   <p className="text-[10px] font-mono text-[#526B91] truncate">
                                     {item.material?.sku || "SKU"} • {item.material?.category || "PART"}
                                   </p>
                                 </div>
-                                <span className="font-mono font-bold text-purple-600 dark:text-purple-400 text-xs shrink-0">
+                                <span className="font-mono font-bold text-[#0878F9] text-xs shrink-0">
                                   x{item.quantity} {item.material?.unit || "PCS"}
                                 </span>
                               </div>
@@ -1949,7 +1969,7 @@ export default function FactorySettingsTab() {
                               <button
                                 type="button"
                                 onClick={() => setPreviewBomModalItem(bom)}
-                                className="w-full text-center text-[10px] font-semibold text-purple-600 dark:text-purple-400 hover:underline py-1"
+                                className="w-full text-center text-[10px] font-semibold text-[#0878F9] hover:underline py-1"
                               >
                                 + {(bom.items || []).length - 4} more components (View All)
                               </button>
@@ -1959,7 +1979,7 @@ export default function FactorySettingsTab() {
                       </div>
 
                       {/* Card Footer Actions */}
-                      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                      <div className="mt-4 pt-3 border-t border-[#D8E8FA] flex items-center justify-between">
                         <span className="text-[10px] text-[#526B91] font-mono">
                           {new Date(bom.createdAt || Date.now()).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
                         </span>
@@ -1967,7 +1987,7 @@ export default function FactorySettingsTab() {
                           <button
                             type="button"
                             onClick={() => handleOpenBomModal(bom)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:text-purple-700 cursor-pointer"
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#0878F9] hover:text-[#0667DB] cursor-pointer"
                           >
                             <Edit className="w-3 h-3" /> Edit BOM
                           </button>
@@ -1991,15 +2011,15 @@ export default function FactorySettingsTab() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel rounded-2xl border overflow-hidden shadow-sm"
         >
-          <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-5 border-b border-[#D8E8FA] flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148]">Material Catalog (Non-Cell Components)</h3>
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[#526B91] dark:text-[#0B2148] rounded-md text-[11px] font-mono font-semibold border border-slate-200 dark:border-slate-700">
+                <h3 className="text-base font-bold text-[#0B2148]">Material Catalog (Non-Cell Components)</h3>
+                <span className="px-2 py-0.5 bg-[#F4F9FF] text-[#526B91] rounded-md text-[11px] font-mono font-semibold border border-[#D8E8FA]">
                   {materials?.length || 0} Materials
                 </span>
               </div>
-              <p className="text-xs text-[#526B91] dark:text-[#526B91] mt-0.5">
+              <p className="text-xs text-[#526B91] mt-0.5">
                 BMS units, busbars, enclosures, wires, insulation, and hardware components used in BOM kit assemblies (Cells are managed separately).
               </p>
             </div>
@@ -2013,7 +2033,7 @@ export default function FactorySettingsTab() {
                   value={materialSearch}
                   onChange={(e) => setMaterialSearch(e.target.value)}
                   placeholder="Search SKU, name, code..."
-                  className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 pl-8 pr-3 text-xs text-slate-900 dark:text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-1.5 pl-8 pr-3 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
 
@@ -2021,7 +2041,7 @@ export default function FactorySettingsTab() {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                className="bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-1.5 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
               >
                 <option value="ALL">All Categories ({allAvailableCategories.length})</option>
                 {allAvailableCategories.map(cat => (
@@ -2033,7 +2053,7 @@ export default function FactorySettingsTab() {
               <select
                 value={typeFilter}
                 onChange={(e) => setTypeFilter(e.target.value as any)}
-                className="bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer font-mono"
+                className="bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-1.5 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer font-mono"
               >
                 <option value="ALL">All Types</option>
                 <option value="QTZ">QTZ</option>
@@ -2043,7 +2063,7 @@ export default function FactorySettingsTab() {
               <button 
                 type="button"
                 onClick={() => window.print()}
-                className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[#0B2148] dark:text-[#0B2148] px-3.5 py-1.5 rounded-xl font-semibold text-xs transition-all border border-slate-200 dark:border-slate-700 cursor-pointer shadow-xs"
+                className="flex items-center gap-1.5 bg-[#F4F9FF] hover:bg-[#EAF5FF] text-[#0B2148] px-3.5 py-1.5 rounded-xl font-semibold text-xs transition-all border border-[#D8E8FA] cursor-pointer shadow-xs"
                 title="Print current filtered catalog"
               >
                 <Printer className="w-3.5 h-3.5 text-[#526B91]" />
@@ -2070,21 +2090,21 @@ export default function FactorySettingsTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-50/80 dark:bg-white border-b border-slate-200 dark:border-slate-800">
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91] w-12 text-center">S.No</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Material Identity</th>
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Material Code</th>
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Part Number</th>
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Material SKU</th>
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Category</th>
-                    <th className="px-3 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Type</th>
-                    <th className="px-3 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Unit</th>
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Base Cost</th>
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Status</th>
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91] text-right">Actions</th>
+                  <tr className="bg-[#F4F9FF] border-b border-[#D8E8FA]">
+                    <th className="px-4 py-3 font-semibold text-[#526B91] w-12 text-center">S.No</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Material Identity</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91]">Material Code</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91]">Part Number</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91]">Material SKU</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91]">Category</th>
+                    <th className="px-3 py-3 font-semibold text-[#526B91]">Type</th>
+                    <th className="px-3 py-3 font-semibold text-[#526B91]">Unit</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91]">Base Cost ({activeCurrencySymbol})</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91]">Status</th>
+                    <th className="px-4 py-3 font-semibold text-[#526B91] text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                <tbody className="divide-y divide-[#D8E8FA]">
                   {filteredMaterials.length === 0 ? (
                     <tr>
                       <td colSpan={11} className="px-6 py-10 text-center text-[#526B91] text-xs">
@@ -2095,17 +2115,17 @@ export default function FactorySettingsTab() {
                     </tr>
                   ) : (
                     filteredMaterials.map((mat: any, idx: number) => (
-                      <tr key={mat.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                      <tr key={mat.id} className="hover:bg-[#F4F9FF] transition-colors">
                         <td className="px-4 py-3 text-center font-mono font-bold text-xs text-[#526B91]">
                           {idx + 1}
                         </td>
                         <td className="px-5 py-3">
-                          <p className="font-semibold text-slate-900 dark:text-[#0B2148]">{mat.name}</p>
+                          <p className="font-semibold text-[#0B2148]">{mat.name}</p>
                           {mat.description && (
                             <p className="text-[11px] text-[#526B91] truncate max-w-xs">{mat.description}</p>
                           )}
                         </td>
-                        <td className="px-4 py-3 font-mono text-[11px] text-[#526B91] dark:text-[#0B2148]">
+                        <td className="px-4 py-3 font-mono text-[11px] text-[#526B91]">
                           {mat.materialCode || (mat.sku ? `MAT-${mat.sku}` : "—")}
                         </td>
                         <td className="px-4 py-3">
@@ -2113,36 +2133,36 @@ export default function FactorySettingsTab() {
                             {mat.partNumber || mat.sku?.replace(/^[A-Z0-9]+-(?=[A-Z]+-\d+)/, "").replace(/^MAT-[A-Z]+-/, "") || mat.sku}
                           </span>
                         </td>
-                        <td className="px-4 py-3 font-mono font-semibold text-xs text-slate-800 dark:text-blue-400">
+                        <td className="px-4 py-3 font-mono font-semibold text-xs text-[#0B2148]">
                           {mat.sku}
                         </td>
                         <td className="px-5 py-3">
-                          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-[11px] font-medium text-slate-700 dark:text-[#0B2148]">
+                          <span className="px-2 py-0.5 bg-[#F4F9FF] border border-[#D8E8FA] rounded text-[11px] font-medium text-[#0B2148]">
                             {mat.category}
                           </span>
                         </td>
                         <td className="px-5 py-3">
                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-mono font-bold ${
                             (mat.materialType || "QTZ") === "NQZ"
-                              ? "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50"
-                              : "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/50"
+                              ? "bg-[#F4F9FF] text-[#0B2148] border border-[#D8E8FA]"
+                              : "bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]"
                           }`}>
                             {(mat.materialType || "QTZ") === "NQZ" ? "NQZ" : "QTZ"}
                           </span>
                         </td>
-                        <td className="px-5 py-3 font-mono text-[#526B91] dark:text-[#526B91]">
+                        <td className="px-5 py-3 font-mono text-[#526B91]">
                           {mat.unit || "PCS"}
                         </td>
-                        <td className="px-5 py-3 font-mono text-slate-700 dark:text-[#0B2148]">
-                          ₹{Number(mat.unitPrice || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        <td className="px-5 py-3 font-mono text-[#0B2148]">
+                          {formatMoneyWithSymbol(mat.unitPrice, activeCurrencySymbol)}
                         </td>
                         <td className="px-5 py-3">
                           <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                             mat.isActive !== false
-                              ? "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-[#0B2148] border border-slate-300 dark:border-slate-700"
-                              : "bg-slate-100 text-[#526B91] border border-slate-200 line-through"
+                              ? "bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]"
+                              : "bg-[#F4F9FF] text-[#526B91] border border-[#D8E8FA] line-through"
                           }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${mat.isActive !== false ? "bg-emerald-500" : "bg-slate-400"}`} />
+                            <span className={`w-1.5 h-1.5 rounded-full ${mat.isActive !== false ? "bg-[#0878F9]" : "bg-slate-400"}`} />
                             {mat.isActive !== false ? "Active" : "Inactive"}
                           </span>
                         </td>
@@ -2151,14 +2171,14 @@ export default function FactorySettingsTab() {
                             <button
                               type="button"
                               onClick={() => toggleMaterialMutation.mutate({ id: mat.id, isActive: mat.isActive === false })}
-                              className="px-2 py-1 text-[11px] font-medium text-[#526B91] dark:text-[#526B91] hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                              className="px-2 py-1 text-[11px] font-medium text-[#526B91] hover:text-[#0B2148] rounded-lg hover:bg-[#F4F9FF] cursor-pointer"
                             >
                               {mat.isActive === false ? "Enable" : "Disable"}
                             </button>
                             <button
                               type="button"
                               onClick={() => handleOpenMaterialModal(mat)}
-                              className="p-1.5 text-[#526B91] hover:text-blue-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-[#526B91] hover:text-blue-600 rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                               title="Edit Material"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -2181,7 +2201,7 @@ export default function FactorySettingsTab() {
                                   }
                                 });
                               }}
-                              className="p-1.5 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                               title="Permanently Delete Material SKU"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -2219,15 +2239,15 @@ export default function FactorySettingsTab() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel rounded-2xl border overflow-hidden shadow-sm"
         >
-          <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-5 border-b border-[#D8E8FA] flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148]">Cell Part Numbers & Chemistries (Cells Only)</h3>
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[#526B91] dark:text-[#0B2148] rounded-md text-[11px] font-mono font-semibold border border-slate-200 dark:border-slate-700">
+                <h3 className="text-base font-bold text-[#0B2148]">Cell Part Numbers & Chemistries (Cells Only)</h3>
+                <span className="px-2 py-0.5 bg-[#F4F9FF] text-[#526B91] rounded-md text-[11px] font-mono font-semibold border border-[#D8E8FA]">
                   {cellMappings?.length || 0} Cell SKUs
                 </span>
               </div>
-              <p className="text-xs text-[#526B91] dark:text-[#526B91] mt-0.5">
+              <p className="text-xs text-[#526B91] mt-0.5">
                 Master battery cell catalog (LFP, NMC, 32140, etc.) with nominal voltage, Ah capacity, and individual cell serial testing tracking.
               </p>
             </div>
@@ -2240,7 +2260,7 @@ export default function FactorySettingsTab() {
                   value={cellSearch}
                   onChange={(e) => setCellSearch(e.target.value)}
                   placeholder="Search cell SKU, chemistry..."
-                  className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 pl-8 pr-3 text-xs text-slate-900 dark:text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-1.5 pl-8 pr-3 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
 
@@ -2264,19 +2284,19 @@ export default function FactorySettingsTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="bg-slate-50/80 dark:bg-white border-b border-slate-200 dark:border-slate-800">
-                    <th className="px-4 py-3 font-semibold text-[#526B91] dark:text-[#526B91] w-14 text-center">S.No</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Cell Model / Name</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Cell Part Number</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Chemistry</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Nominal Voltage</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Nominal Capacity</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Supplier</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91]">Status</th>
-                    <th className="px-5 py-3 font-semibold text-[#526B91] dark:text-[#526B91] text-right">Actions</th>
+                  <tr className="bg-[#F4F9FF] border-b border-[#D8E8FA]">
+                    <th className="px-4 py-3 font-semibold text-[#526B91] w-14 text-center">S.No</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Cell Model / Name</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Cell Part Number</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Chemistry</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Nominal Voltage</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Nominal Capacity</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Supplier</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91]">Status</th>
+                    <th className="px-5 py-3 font-semibold text-[#526B91] text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                <tbody className="divide-y divide-[#D8E8FA]">
                   {filteredCells.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="px-6 py-10 text-center text-[#526B91] text-xs">
@@ -2285,26 +2305,26 @@ export default function FactorySettingsTab() {
                     </tr>
                   ) : (
                     filteredCells.map((cell: any, idx: number) => (
-                      <tr key={cell.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors">
+                      <tr key={cell.id} className="hover:bg-[#F4F9FF] transition-colors">
                         <td className="px-4 py-3 text-center font-mono font-bold text-xs text-[#526B91]">
                           {idx + 1}
                         </td>
                         <td className="px-5 py-3">
-                          <p className="font-semibold text-slate-900 dark:text-[#0B2148]">{cell.cellName}</p>
+                          <p className="font-semibold text-[#0B2148]">{cell.cellName}</p>
                           {cell.description && (
                             <p className="text-[11px] text-[#526B91] truncate max-w-xs">{cell.description}</p>
                           )}
                         </td>
-                        <td className="px-5 py-3 font-mono font-semibold text-blue-600 dark:text-blue-400">
+                        <td className="px-5 py-3 font-mono font-semibold text-blue-600">
                           {cell.cellSku}
                         </td>
-                        <td className="px-5 py-3 font-mono text-slate-700 dark:text-[#0B2148]">
+                        <td className="px-5 py-3 font-mono text-[#0B2148]">
                           {cell.chemistry}
                         </td>
-                        <td className="px-5 py-3 font-mono text-slate-700 dark:text-[#0B2148]">
+                        <td className="px-5 py-3 font-mono text-[#0B2148]">
                           {cell.nominalVoltage} V
                         </td>
-                        <td className="px-5 py-3 font-mono text-slate-700 dark:text-[#0B2148]">
+                        <td className="px-5 py-3 font-mono text-[#0B2148]">
                           {cell.nominalCapacity} Ah
                         </td>
                         <td className="px-5 py-3 text-[#526B91]">
@@ -2313,10 +2333,10 @@ export default function FactorySettingsTab() {
                         <td className="px-5 py-3">
                           <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                             cell.isActive !== false
-                              ? "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-[#0B2148] border border-slate-300 dark:border-slate-700"
-                              : "bg-slate-100 text-[#526B91] border border-slate-200 line-through"
+                              ? "bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]"
+                              : "bg-[#F4F9FF] text-[#526B91] border border-[#D8E8FA] line-through"
                           }`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${cell.isActive !== false ? "bg-emerald-500" : "bg-slate-400"}`} />
+                            <span className={`w-1.5 h-1.5 rounded-full ${cell.isActive !== false ? "bg-[#0878F9]" : "bg-slate-400"}`} />
                             {cell.isActive !== false ? "Active" : "Inactive"}
                           </span>
                         </td>
@@ -2325,14 +2345,14 @@ export default function FactorySettingsTab() {
                             <button
                               type="button"
                               onClick={() => toggleCellMutation.mutate({ id: cell.id, isActive: cell.isActive === false })}
-                              className="px-2 py-1 text-[11px] font-medium text-[#526B91] dark:text-[#526B91] hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                              className="px-2 py-1 text-[11px] font-medium text-[#526B91] hover:text-[#0B2148] rounded-lg hover:bg-[#F4F9FF] cursor-pointer"
                             >
                               {cell.isActive === false ? "Enable" : "Disable"}
                             </button>
                             <button
                               type="button"
                               onClick={() => handleOpenCellModal(cell)}
-                              className="p-1.5 text-[#526B91] hover:text-blue-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-[#526B91] hover:text-blue-600 rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                               title="Edit Cell SKU"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -2355,7 +2375,7 @@ export default function FactorySettingsTab() {
                                   }
                                 });
                               }}
-                              className="p-1.5 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                              className="p-1.5 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                               title="Permanently Delete Cell SKU"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -2381,15 +2401,15 @@ export default function FactorySettingsTab() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel rounded-2xl border overflow-hidden shadow-sm"
         >
-          <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-5 border-b border-[#D8E8FA] flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148]">Material Categories</h3>
-                <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-[#526B91] dark:text-[#0B2148] rounded-md text-[11px] font-mono font-semibold border border-slate-200 dark:border-slate-700">
+                <h3 className="text-base font-bold text-[#0B2148]">Material Categories</h3>
+                <span className="px-2 py-0.5 bg-[#F4F9FF] text-[#526B91] rounded-md text-[11px] font-mono font-semibold border border-[#D8E8FA]">
                   {allAvailableCategories.length} Categories
                 </span>
               </div>
-              <p className="text-xs text-[#526B91] dark:text-[#526B91] mt-0.5">
+              <p className="text-xs text-[#526B91] mt-0.5">
                 Classification tags used for inventory structuring and BOM categorization.
               </p>
             </div>
@@ -2402,7 +2422,7 @@ export default function FactorySettingsTab() {
                   value={categorySearch}
                   onChange={(e) => setCategorySearch(e.target.value)}
                   placeholder="Search categories..."
-                  className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 pl-8 pr-3 text-xs text-slate-900 dark:text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-1.5 pl-8 pr-3 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
 
@@ -2418,9 +2438,9 @@ export default function FactorySettingsTab() {
           </div>
 
           {/* Inline Quick Add Input Bar */}
-          <div className="p-4 bg-slate-50/60 dark:bg-white border-b border-slate-200 dark:border-slate-800">
+          <div className="p-4 bg-[#F4F9FF] border-b border-[#D8E8FA]">
             <form onSubmit={handleCreateCategorySubmit} className="flex flex-col sm:flex-row items-center gap-3">
-              <span className="text-xs font-semibold text-slate-700 dark:text-[#0B2148] whitespace-nowrap">
+              <span className="text-xs font-semibold text-[#0B2148] whitespace-nowrap">
                 Quick Add:
               </span>
               <input
@@ -2428,7 +2448,7 @@ export default function FactorySettingsTab() {
                 value={newCategoryInput}
                 onChange={(e) => setNewCategoryInput(e.target.value)}
                 placeholder="e.g. THERMAL_PAD, BUSBAR_INSULATOR, CONNECTOR..."
-                className="flex-1 bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-3 text-xs text-slate-900 dark:text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                className="flex-1 bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-3 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
               />
               <button
                 type="submit"
@@ -2451,15 +2471,15 @@ export default function FactorySettingsTab() {
                 return (
                   <div
                     key={categoryName}
-                    className="p-3.5 rounded-xl bg-white dark:bg-white border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex flex-col justify-between gap-2.5"
+                    className="p-3.5 rounded-xl bg-white border border-[#D8E8FA] hover:border-[#D8E8FA] transition-all flex flex-col justify-between gap-2.5"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-start gap-2">
-                        <span className="w-5 h-5 rounded bg-slate-100 text-[#526B91] font-mono font-bold text-[10px] flex items-center justify-center shrink-0 border border-slate-200 mt-0.5">
+                        <span className="w-5 h-5 rounded bg-[#F4F9FF] text-[#526B91] font-mono font-bold text-[10px] flex items-center justify-center shrink-0 border border-[#D8E8FA] mt-0.5">
                           #{idx + 1}
                         </span>
                         <div>
-                          <p className="text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] tracking-tight">{categoryName}</p>
+                          <p className="text-xs font-mono font-bold text-[#0B2148] tracking-tight">{categoryName}</p>
                           <p className="text-[10px] text-[#526B91] mt-0.5">
                             {isCustom ? "Custom Category" : "Standard Preset"}
                           </p>
@@ -2503,7 +2523,7 @@ export default function FactorySettingsTab() {
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-[#526B91]">
+                    <div className="flex items-center justify-between pt-2 border-t border-[#D8E8FA] text-[11px] text-[#526B91]">
                       <span>{materialCount} SKUs</span>
                       <button
                         type="button"
@@ -2533,18 +2553,18 @@ export default function FactorySettingsTab() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel rounded-2xl border overflow-hidden shadow-sm"
         >
-          <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-5 border-b border-[#D8E8FA] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148] flex items-center gap-2">
-                <DollarSign className="w-4 h-4 text-emerald-600" />
+              <h3 className="text-base font-bold text-[#0B2148] flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-[#0878F9]" />
                 Commercial & Financial Defaults
               </h3>
-              <p className="text-xs text-[#526B91] dark:text-[#526B91] mt-0.5">
+              <p className="text-xs text-[#526B91] mt-0.5">
                 Default pre-fill currency, tax schedules, quotation terms, and logistics shipping charges.
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-xs font-mono font-bold">
+              <span className="px-2.5 py-1 rounded-lg bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA] text-xs font-mono font-bold">
                 Operating Currency: {financialForm.defaultCurrency} ({getCurrencySymbol(financialForm.defaultCurrency)})
               </span>
             </div>
@@ -2559,20 +2579,20 @@ export default function FactorySettingsTab() {
           >
             {/* Commercial Terms Grid */}
             <div className="space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-[#526B91] flex items-center gap-1.5">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-[#526B91] flex items-center gap-1.5">
                 <span>1. Commercial & Currency Schedule</span>
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Currency */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148] flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#0B2148] flex items-center justify-between">
                     <span>Operating Currency</span>
-                    <span className="text-[10px] text-emerald-600 font-mono font-bold">Active: {getCurrencySymbol(financialForm.defaultCurrency)}</span>
+                    <span className="text-[10px] text-[#0878F9] font-mono font-bold">Active: {getCurrencySymbol(financialForm.defaultCurrency)}</span>
                   </label>
                   <select
                     value={financialForm.defaultCurrency}
                     onChange={(e) => setFinancialForm({ ...financialForm, defaultCurrency: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono font-semibold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer ring-1 ring-emerald-500/20"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-semibold text-[#0B2148] focus:outline-none focus:border-[#0878F9] cursor-pointer ring-1 ring-blue-500/20"
                   >
                     <option value="ZMW">ZMW (ZK) - Zambian Kwacha (Zambia)</option>
                     <option value="INR">INR (₹) - Indian Rupee</option>
@@ -2585,32 +2605,62 @@ export default function FactorySettingsTab() {
 
                 {/* Default Tax Rate */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
-                    Standard Tax / VAT Rate (%)
-                  </label>
-                  <select
-                    value={financialForm.defaultTaxRate}
-                    onChange={(e) => setFinancialForm({ ...financialForm, defaultTaxRate: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
-                  >
-                    <option value="0">0% (Zero-Rated / Exempt)</option>
-                    <option value="5">5% (Concessional / Solar / EV)</option>
-                    <option value="12">12%</option>
-                    <option value="16">16% (Zambia Standard VAT)</option>
-                    <option value="18">18% (Standard GST / Electronics)</option>
-                    <option value="28">28% (Luxury / Higher Bracket)</option>
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-[#0B2148]">
+                      Standard VAT Rate (%)
+                    </label>
+                    {isCustomTaxRate && (
+                      <span className="text-[10px] text-blue-600 font-semibold uppercase tracking-wider">
+                        Custom Rate Active
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={isCustomTaxRate ? "custom" : String(financialForm.defaultTaxRate)}
+                      onChange={(e) => {
+                        if (e.target.value === "custom") {
+                          setIsCustomTaxRate(true);
+                        } else {
+                          setIsCustomTaxRate(false);
+                          setFinancialForm({ ...financialForm, defaultTaxRate: parseFloat(e.target.value) || 0 });
+                        }
+                      }}
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                    >
+                      <option value="16">16% (Zambia Standard VAT - ZRA)</option>
+                      <option value="0">0% (Zero-Rated / Exempt VAT)</option>
+                      <option value="5">5% (Concessional VAT)</option>
+                      <option value="custom">Custom VAT Rate (%)</option>
+                    </select>
+                    {isCustomTaxRate && (
+                      <div className="relative w-28 flex-shrink-0">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={financialForm.defaultTaxRate}
+                          onChange={(e) => setFinancialForm({ ...financialForm, defaultTaxRate: parseFloat(e.target.value) || 0 })}
+                          placeholder="Rate %"
+                          className="w-full bg-white border-2 border-blue-500 rounded-xl py-2 px-2.5 pr-6 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                          autoFocus
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[#526B91] pointer-events-none">%</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Payment Terms */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                  <label className="text-xs font-semibold text-[#0B2148]">
                     Default Payment Terms
                   </label>
                   <select
                     value={financialForm.defaultPaymentTerms}
                     onChange={(e) => setFinancialForm({ ...financialForm, defaultPaymentTerms: e.target.value })}
-                    className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
                   >
                     <option value="100% Advance">100% Advance</option>
                     <option value="50% Advance, 50% Before Dispatch">50% Advance, 50% Before Dispatch</option>
@@ -2623,7 +2673,7 @@ export default function FactorySettingsTab() {
 
                 {/* Advance Percentage */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                  <label className="text-xs font-semibold text-[#0B2148]">
                     Default Advance Required (%)
                   </label>
                   <input 
@@ -2632,13 +2682,13 @@ export default function FactorySettingsTab() {
                     max="100"
                     value={financialForm.defaultAdvancePercentage}
                     onChange={(e) => setFinancialForm({ ...financialForm, defaultAdvancePercentage: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
 
                 {/* Quotation Validity */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                  <label className="text-xs font-semibold text-[#0B2148]">
                     Quotation Validity (Days)
                   </label>
                   <input 
@@ -2647,13 +2697,13 @@ export default function FactorySettingsTab() {
                     max="365"
                     value={financialForm.defaultQuotationValidityDays}
                     onChange={(e) => setFinancialForm({ ...financialForm, defaultQuotationValidityDays: parseInt(e.target.value, 10) || 30 })}
-                    className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
 
                 {/* Minimum Order Value */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                  <label className="text-xs font-semibold text-[#0B2148]">
                     Minimum Order Value ({getCurrencySymbol(financialForm.defaultCurrency)})
                   </label>
                   <input 
@@ -2662,23 +2712,131 @@ export default function FactorySettingsTab() {
                     step="0.01"
                     value={financialForm.minimumOrderValue}
                     onChange={(e) => setFinancialForm({ ...financialForm, minimumOrderValue: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
+                </div>
+              </div>
+
+              {/* Company Settlement & Bank Account Details */}
+              <div className="mt-4 p-4 rounded-xl border border-[#D8E8FA] bg-[#F4F9FF]/60 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 pb-2 border-b border-[#D8E8FA]">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-[#0878F9] text-white">
+                      <Landmark className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-bold text-[#0B2148] flex items-center gap-2">
+                        <span>Official Company Bank & Settlement Account Details</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA] font-semibold uppercase tracking-wider">
+                          Replicated to Quotations & Invoices
+                        </span>
+                      </h5>
+                      <p className="text-[11px] text-[#526B91]">
+                        Configured bank account info automatically replicates across Sales Quotations, Proformas, and Customer Invoices.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-1">
+                  {/* Bank Name */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#0B2148]">
+                      Bank Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Zambia National Commercial Bank (Zanaco)"
+                      value={financialForm.bankName}
+                      onChange={(e) => setFinancialForm({ ...financialForm, bankName: e.target.value })}
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
+                    />
+                  </div>
+
+                  {/* Beneficiary / Account Name */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#0B2148]">
+                      Beneficiary / Account Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. KYRA ZAM LIMITED"
+                      value={financialForm.accountName}
+                      onChange={(e) => setFinancialForm({ ...financialForm, accountName: e.target.value })}
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs font-medium"
+                    />
+                  </div>
+
+                  {/* Account Number */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#0B2148]">
+                      Account Number
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 1029384756"
+                      value={financialForm.accountNumber}
+                      onChange={(e) => setFinancialForm({ ...financialForm, accountNumber: e.target.value })}
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
+                    />
+                  </div>
+
+                  {/* Branch / Sort Code */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#0B2148]">
+                      Branch / Sort Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Lusaka Corporate Branch (010022)"
+                      value={financialForm.branch}
+                      onChange={(e) => setFinancialForm({ ...financialForm, branch: e.target.value })}
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
+                    />
+                  </div>
+
+                  {/* SWIFT / BIC Code */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-[#0B2148]">
+                      SWIFT / BIC / IFSC Code
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. ZANAZMLX"
+                      value={financialForm.swiftCode}
+                      onChange={(e) => setFinancialForm({ ...financialForm, swiftCode: e.target.value.toUpperCase() })}
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono uppercase text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
+                    />
+                  </div>
+
+                  {/* Remittance & Settlement Instructions */}
+                  <div className="space-y-1 sm:col-span-2 lg:col-span-1">
+                    <label className="text-xs font-semibold text-[#0B2148]">
+                      Payment & Settlement Instructions
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Quote Quotation # in payment reference"
+                      value={financialForm.bankDetails}
+                      onChange={(e) => setFinancialForm({ ...financialForm, bankDetails: e.target.value })}
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 shadow-xs"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* DEDICATED SHIPPING CHARGE CONFIGURATION CARD */}
-            <div className="rounded-xl border border-blue-200/80 dark:border-blue-900/50 bg-gradient-to-br from-blue-50/40 via-white to-slate-50/60 dark:from-blue-950/10 dark:via-transparent dark:to-slate-900/20 p-4 sm:p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-blue-100 dark:border-blue-900/40 gap-2">
+            <div className="rounded-xl border border-blue-200/80 bg-gradient-to-br from-blue-50/40 via-white to-slate-50/60 p-4 sm:p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-blue-100 gap-2">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2 rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-500/30">
                     <Truck className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-[#0B2148] flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-[#0B2148] flex items-center gap-2">
                       <span>2. Shipping & Freight Charge Configuration</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-semibold uppercase tracking-wider">
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold uppercase tracking-wider">
                         Logistics Rules
                       </span>
                     </h4>
@@ -2688,7 +2846,7 @@ export default function FactorySettingsTab() {
                   </div>
                 </div>
 
-                <div className="text-[11px] font-mono text-[#526B91] bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="text-[11px] font-mono text-[#526B91] bg-white px-2.5 py-1 rounded-lg border border-[#D8E8FA]">
                   Rate Unit: <span className="font-bold text-blue-600">{financialForm.defaultCurrency} ({getCurrencySymbol(financialForm.defaultCurrency)})</span>
                 </div>
               </div>
@@ -2696,25 +2854,23 @@ export default function FactorySettingsTab() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Shipping Calculation Method */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                  <label className="text-xs font-semibold text-[#0B2148]">
                     Shipping Calculation Method
                   </label>
                   <select
                     value={financialForm.shippingCalculationMethod}
                     onChange={(e) => setFinancialForm({ ...financialForm, shippingCalculationMethod: e.target.value })}
-                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer font-medium"
+                    className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer font-medium"
                   >
                     <option value="FLAT_RATE">Flat Base Fee Per Dispatch</option>
-                    <option value="WEIGHT_BASED">Weight-Based / Volumetric Tier</option>
                     <option value="FREE_THRESHOLD">Free Shipping Above Threshold</option>
-                    <option value="PERCENTAGE">Percentage of Order Subtotal</option>
                     <option value="EXW_CUSTOMER_PICKUP">Ex-Works / Customer Pickup (0 Charge)</option>
                   </select>
                 </div>
 
                 {/* Default Freight Amount */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                  <label className="text-xs font-semibold text-[#0B2148]">
                     Default Base Freight Charge ({getCurrencySymbol(financialForm.defaultCurrency)})
                   </label>
                   <input 
@@ -2723,13 +2879,13 @@ export default function FactorySettingsTab() {
                     step="0.01"
                     value={financialForm.defaultFreightAmount}
                     onChange={(e) => setFinancialForm({ ...financialForm, defaultFreightAmount: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-semibold"
+                    className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600 font-semibold"
                   />
                 </div>
 
                 {/* Handling Charge */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                  <label className="text-xs font-semibold text-[#0B2148]">
                     Packaging & Handling Surcharge ({getCurrencySymbol(financialForm.defaultCurrency)})
                   </label>
                   <input 
@@ -2738,13 +2894,13 @@ export default function FactorySettingsTab() {
                     step="0.01"
                     value={financialForm.defaultHandlingCharge}
                     onChange={(e) => setFinancialForm({ ...financialForm, defaultHandlingCharge: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                    className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
 
                 {/* Free Shipping Threshold */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148] flex items-center justify-between">
+                  <label className="text-xs font-semibold text-[#0B2148] flex items-center justify-between">
                     <span>Free Shipping Threshold ({getCurrencySymbol(financialForm.defaultCurrency)})</span>
                     <span className="text-[10px] text-blue-600 font-normal">0 = Inactive</span>
                   </label>
@@ -2754,20 +2910,20 @@ export default function FactorySettingsTab() {
                     step="0.01"
                     value={financialForm.freeShippingThreshold}
                     onChange={(e) => setFinancialForm({ ...financialForm, freeShippingThreshold: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                    className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     placeholder="e.g. 5000"
                   />
                 </div>
 
                 {/* Preferred Carrier / Mode */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                  <label className="text-xs font-semibold text-[#0B2148]">
                     Default Shipping Carrier / Method
                   </label>
                   <select
                     value={financialForm.defaultShippingCarrier}
                     onChange={(e) => setFinancialForm({ ...financialForm, defaultShippingCarrier: e.target.value })}
-                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                    className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
                   >
                     <option value="Standard Road Logistics">Standard Road Logistics</option>
                     <option value="Swift Express Cargo (Zambia)">Swift Express Cargo (Zambia)</option>
@@ -2781,25 +2937,56 @@ export default function FactorySettingsTab() {
 
                 {/* Shipping Tax Rate */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
-                    Freight VAT / GST Rate (%)
-                  </label>
-                  <select
-                    value={financialForm.shippingTaxRate}
-                    onChange={(e) => setFinancialForm({ ...financialForm, shippingTaxRate: parseFloat(e.target.value) || 0 })}
-                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
-                  >
-                    <option value="0">0% (Zero-Rated / Exempt)</option>
-                    <option value="5">5% (Concessional Freight)</option>
-                    <option value="12">12% (Standard Logistics)</option>
-                    <option value="16">16% (Zambia VAT on Freight)</option>
-                    <option value="18">18% (Standard GST on Freight)</option>
-                  </select>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-[#0B2148]">
+                      Freight VAT Rate (%)
+                    </label>
+                    {isCustomShippingTaxRate && (
+                      <span className="text-[10px] text-blue-600 font-semibold uppercase tracking-wider">
+                        Custom Rate Active
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={isCustomShippingTaxRate ? "custom" : String(financialForm.shippingTaxRate)}
+                      onChange={(e) => {
+                        if (e.target.value === "custom") {
+                          setIsCustomShippingTaxRate(true);
+                        } else {
+                          setIsCustomShippingTaxRate(false);
+                          setFinancialForm({ ...financialForm, shippingTaxRate: parseFloat(e.target.value) || 0 });
+                        }
+                      }}
+                      className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                    >
+                      <option value="16">16% (Zambia Standard VAT on Freight)</option>
+                      <option value="0">0% (Zero-Rated / Exempt VAT)</option>
+                      <option value="5">5% (Concessional Freight VAT)</option>
+                      <option value="custom">Custom VAT Rate (%)</option>
+                    </select>
+                    {isCustomShippingTaxRate && (
+                      <div className="relative w-28 flex-shrink-0">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={financialForm.shippingTaxRate}
+                          onChange={(e) => setFinancialForm({ ...financialForm, shippingTaxRate: parseFloat(e.target.value) || 0 })}
+                          placeholder="Rate %"
+                          className="w-full bg-white border-2 border-blue-500 rounded-xl py-2 px-2.5 pr-6 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                          autoFocus
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-bold text-[#526B91] pointer-events-none">%</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Transit Lead Time */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                  <label className="text-xs font-semibold text-[#0B2148]">
                     Estimated Delivery Lead Time (Days)
                   </label>
                   <input 
@@ -2808,14 +2995,14 @@ export default function FactorySettingsTab() {
                     max="60"
                     value={financialForm.estimatedDeliveryLeadDays}
                     onChange={(e) => setFinancialForm({ ...financialForm, estimatedDeliveryLeadDays: parseInt(e.target.value, 10) || 0 })}
-                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                    className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
                 </div>
               </div>
             </div>
 
             {/* Form Action Buttons */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between pt-4 border-t border-[#D8E8FA]">
               <button 
                 type="button"
                 onClick={() => {
@@ -2824,14 +3011,14 @@ export default function FactorySettingsTab() {
                     recordType: "Commercial & Financial Configuration",
                     recordIdentity: "Standard ERP Financial & Shipping Settings",
                     hasDependencies: false,
-                    warningText: "This will reset default currencies, GST/VAT rates, freight amounts, shipping rules, and quotation terms back to factory standards.",
+                    warningText: "This will reset default currencies, VAT rates, freight amounts, shipping rules, and quotation terms back to factory standards.",
                     onConfirm: async () => {
                       await resetFinancialMutation.mutateAsync();
                     }
                   });
                 }}
                 disabled={resetFinancialMutation.isPending}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/60 dark:bg-red-950/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 text-xs font-semibold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-red-200 bg-red-50/60 text-red-600 hover:bg-red-100 text-xs font-semibold transition-all cursor-pointer"
                 title="Reset all financial and shipping values to factory standards"
               >
                 {resetFinancialMutation.isPending ? (
@@ -2868,9 +3055,9 @@ export default function FactorySettingsTab() {
           animate={{ opacity: 1, y: 0 }}
           className="glass-panel rounded-2xl border overflow-hidden shadow-sm"
         >
-          <div className="p-5 border-b border-slate-200 dark:border-slate-800">
-            <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148]">Factory Operational Defaults</h3>
-            <p className="text-xs text-[#526B91] dark:text-[#526B91] mt-0.5">
+          <div className="p-5 border-b border-[#D8E8FA]">
+            <h3 className="text-base font-bold text-[#0B2148]">Factory Operational Defaults</h3>
+            <p className="text-xs text-[#526B91] mt-0.5">
               Production schedule rules, measurement systems, and shipping terms.
             </p>
           </div>
@@ -2885,13 +3072,13 @@ export default function FactorySettingsTab() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Unit System */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                <label className="text-xs font-semibold text-[#0B2148]">
                   Standard Unit System
                 </label>
                 <select
                   value={defaultsForm.defaultUnitSystem}
                   onChange={(e) => setDefaultsForm({ ...defaultsForm, defaultUnitSystem: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                  className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
                 >
                   <option value="METRIC">Metric (kg, mm, °C)</option>
                   <option value="IMPERIAL">Imperial (lbs, in, °F)</option>
@@ -2900,13 +3087,13 @@ export default function FactorySettingsTab() {
 
               {/* Factory Timezone */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                <label className="text-xs font-semibold text-[#0B2148]">
                   Factory Operating Timezone
                 </label>
                 <select
                   value={defaultsForm.defaultTimezone}
                   onChange={(e) => setDefaultsForm({ ...defaultsForm, defaultTimezone: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                  className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
                 >
                   <option value="Africa/Lusaka">Africa/Lusaka (CAT - UTC+2:00 - Zambia)</option>
                   <option value="Asia/Kolkata">Asia/Kolkata (IST - UTC+5:30)</option>
@@ -2918,13 +3105,13 @@ export default function FactorySettingsTab() {
 
               {/* Default Delivery Terms */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                <label className="text-xs font-semibold text-[#0B2148]">
                   Default Incoterms
                 </label>
                 <select
                   value={defaultsForm.defaultDeliveryTerms}
                   onChange={(e) => setDefaultsForm({ ...defaultsForm, defaultDeliveryTerms: e.target.value })}
-                  className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                  className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
                 >
                   <option value="EXW - Ex Works">EXW - Ex Works (Factory Gate)</option>
                   <option value="FOB - Free on Board">FOB - Free on Board</option>
@@ -2935,7 +3122,7 @@ export default function FactorySettingsTab() {
 
               {/* Working Hours */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                <label className="text-xs font-semibold text-[#0B2148]">
                   Standard Shift Hours / Day
                 </label>
                 <input 
@@ -2946,13 +3133,13 @@ export default function FactorySettingsTab() {
                   value={defaultsForm.workingHoursPerDay}
                   onChange={(e) => setDefaultsForm({ ...defaultsForm, workingHoursPerDay: parseFloat(e.target.value) || 8 })}
                   required
-                  className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
 
               {/* Production Days */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                <label className="text-xs font-semibold text-[#0B2148]">
                   Operating Days / Week
                 </label>
                 <input 
@@ -2962,12 +3149,12 @@ export default function FactorySettingsTab() {
                   value={defaultsForm.productionDaysPerWeek}
                   onChange={(e) => setDefaultsForm({ ...defaultsForm, productionDaysPerWeek: parseInt(e.target.value, 10) || 6 })}
                   required
-                  className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between pt-4 border-t border-[#D8E8FA]">
               <button 
                 type="button"
                 onClick={() => {
@@ -2983,7 +3170,7 @@ export default function FactorySettingsTab() {
                   });
                 }}
                 disabled={resetDefaultsMutation.isPending}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50/60 dark:bg-red-950/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 text-xs font-semibold transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-red-200 bg-red-50/60 text-red-600 hover:bg-red-100 text-xs font-semibold transition-all cursor-pointer"
                 title="Reset operational parameters to factory defaults"
               >
                 {resetDefaultsMutation.isPending ? (
@@ -3049,7 +3236,7 @@ export default function FactorySettingsTab() {
                   <button 
                     type="button"
                     onClick={() => setIsPaxModalOpen(false)} 
-                    className="p-1.5 hover:bg-slate-100 rounded-lg text-[#526B91] hover:text-[#0B2148] transition-all cursor-pointer"
+                    className="p-1.5 hover:bg-[#F4F9FF] rounded-lg text-[#526B91] hover:text-[#0B2148] transition-all cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -3058,15 +3245,15 @@ export default function FactorySettingsTab() {
                 {/* Modal Body / Form Fields (Internally Scrollable) */}
                 <div className="p-5 sm:p-6 space-y-5 overflow-y-auto flex-1">
                 {/* 1. Model Profile & Commercial Pricing */}
-                <div className="p-4 bg-slate-50/70 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
-                  <p className="text-xs font-bold text-slate-800 dark:text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
+                <div className="p-4 bg-[#F4F9FF] border border-[#D8E8FA] rounded-2xl space-y-3">
+                  <p className="text-xs font-bold text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
                     <FileText className="w-3.5 h-3.5 text-blue-600" />
                     1. Model Identification & Master Profile
                   </p>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1 sm:col-span-2">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Product Model Name / SKU *
                       </label>
                       <input 
@@ -3074,16 +3261,16 @@ export default function FactorySettingsTab() {
                         defaultValue={selectedPaxType?.name}
                         required
                         placeholder="e.g. KYRA-48V-100AH-LFP, KZ-72V-45AH"
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono font-bold text-blue-600 dark:text-blue-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-bold text-blue-600 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
-                        Standard Selling Price (₹) *
+                      <label className="text-xs font-semibold text-[#0B2148]">
+                        Standard Selling Price ({activeCurrencySymbol}) *
                       </label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#526B91] font-mono font-semibold text-xs">₹</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#526B91] font-mono font-semibold text-xs">{activeCurrencySymbol}</span>
                         <input 
                           name="unitPrice"
                           type="number"
@@ -3092,28 +3279,28 @@ export default function FactorySettingsTab() {
                           defaultValue={selectedPaxType?.unitPrice ?? 0}
                           required
                           placeholder="0.00"
-                          className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 pl-7 pr-3 text-xs font-mono font-bold text-emerald-600 dark:text-[#166534] focus:outline-none focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600"
+                          className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 pl-9 pr-3 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9]"
                         />
                       </div>
                     </div>
 
                     <div className="space-y-1 sm:col-span-3">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Model Description / Application Scope
                       </label>
                       <input 
                         name="description"
                         defaultValue={selectedPaxType?.description}
                         placeholder="e.g. 48V 100Ah Commercial Solar ESS & Golf Cart Battery Pack"
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* 2. Cell Part Number & Chemistry Connection */}
-                <div className="p-4 bg-slate-50/70 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-3">
-                  <p className="text-xs font-bold text-slate-800 dark:text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
+                <div className="p-4 bg-[#F4F9FF] border border-[#D8E8FA] rounded-2xl space-y-3">
+                  <p className="text-xs font-bold text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
                     <Battery className="w-3.5 h-3.5 text-blue-600" />
                     2. Cell Master Connection & Electrical Topology
                   </p>
@@ -3121,7 +3308,7 @@ export default function FactorySettingsTab() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {/* Cell Part Number Selector */}
                     <div className="space-y-1 sm:col-span-2">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148] flex items-center justify-between">
+                      <label className="text-xs font-semibold text-[#0B2148] flex items-center justify-between">
                         <span>Connected Cell Part Number / SKU</span>
                         <span className="text-[10px] text-[#526B91]">From Cell Catalog</span>
                       </label>
@@ -3137,7 +3324,7 @@ export default function FactorySettingsTab() {
                               if (matched.nominalCapacity) setPaxNominalCapacity(matched.nominalCapacity);
                             }
                           }}
-                          className="flex-1 bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono font-semibold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                          className="flex-1 bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-semibold text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
                         >
                           <option value="">-- Select Cell Part Number --</option>
                           {(cellMappings || []).map((c: any) => (
@@ -3151,20 +3338,20 @@ export default function FactorySettingsTab() {
                           value={selectedCellPartNumber}
                           onChange={(e) => setSelectedCellPartNumber(e.target.value)}
                           placeholder="Or type custom SKU"
-                          className="w-36 bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-2.5 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                          className="w-36 bg-white border border-[#D8E8FA] rounded-xl py-2 px-2.5 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600"
                         />
                       </div>
                     </div>
 
                     {/* Cell Chemistry */}
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Cell Chemistry
                       </label>
                       <select
                         value={selectedCellChemistry}
                         onChange={(e) => setSelectedCellChemistry(e.target.value)}
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-semibold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-semibold text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
                       >
                         {CHEMISTRY_OPTIONS.map(c => (
                           <option key={c} value={c}>{c}</option>
@@ -3174,7 +3361,7 @@ export default function FactorySettingsTab() {
 
                     {/* Series Cell Count */}
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Total Cells (Series Count) *
                       </label>
                       <input 
@@ -3190,13 +3377,13 @@ export default function FactorySettingsTab() {
                           setPaxConfiguration(`${count}S1P`);
                         }}
                         required
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
 
                     {/* Nominal Voltage */}
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Nominal Pack Voltage (V)
                       </label>
                       <input 
@@ -3206,13 +3393,13 @@ export default function FactorySettingsTab() {
                         min="1"
                         value={paxNominalVoltage}
                         onChange={(e) => setPaxNominalVoltage(parseFloat(e.target.value) || 48.0)}
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
 
                     {/* Nominal Capacity & Configuration */}
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Topology / Config
                       </label>
                       <input 
@@ -3221,7 +3408,7 @@ export default function FactorySettingsTab() {
                         value={paxConfiguration}
                         onChange={(e) => setPaxConfiguration(e.target.value)}
                         placeholder="e.g. 16S1P, 16S2P"
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
                   </div>
@@ -3245,8 +3432,8 @@ export default function FactorySettingsTab() {
                         }}
                         className={`px-2 py-0.5 rounded-lg text-[10px] font-mono font-semibold border transition-all cursor-pointer ${
                           paxCellCount === p.count
-                            ? "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-400 dark:border-blue-700 shadow-xs"
-                            : "bg-slate-100 dark:bg-slate-800 text-[#526B91] dark:text-[#526B91] border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                            ? "bg-blue-50  text-blue-700  border-blue-400  shadow-xs"
+                            : "bg-[#F4F9FF]  text-[#526B91]  border-[#D8E8FA]  hover:border-[#D8E8FA]"
                         }`}
                       >
                         {p.label}
@@ -3256,14 +3443,14 @@ export default function FactorySettingsTab() {
                 </div>
 
                 {/* 3. BOM Connection & Bill of Materials Details */}
-                <div className="p-4 bg-purple-50/40 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800/60 rounded-2xl space-y-3">
+                <div className="p-4 bg-[#EAF5FF]/60 border border-[#D8E8FA] rounded-2xl space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                    <p className="text-xs font-bold text-purple-900 dark:text-purple-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <Component className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    <p className="text-xs font-bold text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
+                      <Component className="w-3.5 h-3.5 text-[#0878F9]" />
                       3. BOM Connection & Bill of Materials Details
                     </p>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-purple-700 dark:text-purple-400 font-mono">
+                      <span className="text-[10px] text-[#0878F9] font-mono">
                         {bomsList?.length || 0} Registered BOMs
                       </span>
                       <button
@@ -3272,7 +3459,7 @@ export default function FactorySettingsTab() {
                           setSelectedBomId(newBom.id);
                           setSelectedBomNumber(newBom.name);
                         })}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow-xs transition-all cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold bg-[#0878F9] hover:bg-[#0667DB] text-white rounded-lg shadow-xs transition-all cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         Register New BOM
@@ -3284,7 +3471,7 @@ export default function FactorySettingsTab() {
                     {/* BOM Selector */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                        <label className="text-xs font-semibold text-[#0B2148]">
                           Linked BOM Template
                         </label>
                         {selectedBomId && (
@@ -3294,7 +3481,7 @@ export default function FactorySettingsTab() {
                               const activeBom = (bomsList || []).find((b: any) => b.id === selectedBomId);
                               if (activeBom) handleOpenBomModal(activeBom);
                             }}
-                            className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 cursor-pointer"
+                            className="text-[10px] font-semibold text-[#0878F9] hover:underline flex items-center gap-1 cursor-pointer"
                           >
                             <Edit className="w-2.5 h-2.5" /> Edit BOM
                           </button>
@@ -3310,7 +3497,7 @@ export default function FactorySettingsTab() {
                             setSelectedBomNumber(matchedBom.name);
                           }
                         }}
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono font-semibold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-purple-600 cursor-pointer"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-semibold text-[#0B2148] focus:outline-none focus:border-[#0878F9] cursor-pointer"
                       >
                         <option value="">-- Select BOM Template --</option>
                         {(bomsList || []).map((b: any) => (
@@ -3323,7 +3510,7 @@ export default function FactorySettingsTab() {
 
                     {/* BOM Number / Drawing Code */}
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         BOM Number / Drawing Code
                       </label>
                       <input
@@ -3331,7 +3518,7 @@ export default function FactorySettingsTab() {
                         value={selectedBomNumber}
                         onChange={(e) => setSelectedBomNumber(e.target.value)}
                         placeholder="e.g. BOM-KYRA-48V-100-REV1"
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono font-bold text-purple-700 dark:text-purple-300 focus:outline-none focus:border-purple-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-bold text-[#0878F9] focus:outline-none focus:border-[#0878F9]"
                       />
                     </div>
                   </div>
@@ -3341,7 +3528,7 @@ export default function FactorySettingsTab() {
                     const activeBom = (bomsList || []).find((b: any) => b.id === selectedBomId);
                     if (!activeBom || !activeBom.items || activeBom.items.length === 0) {
                       return (
-                        <div className="p-3.5 rounded-xl bg-white/60 dark:bg-white border border-dashed border-purple-200 dark:border-purple-800 text-[11px] text-[#526B91] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="p-3.5 rounded-xl bg-white/60 border border-dashed border-[#D8E8FA] text-[11px] text-[#526B91] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           <span>Select an existing BOM template or click <strong>Register New BOM</strong> to build kit components.</span>
                           <button
                             type="button"
@@ -3349,7 +3536,7 @@ export default function FactorySettingsTab() {
                               setSelectedBomId(newBom.id);
                               setSelectedBomNumber(newBom.name);
                             })}
-                            className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:underline shrink-0 cursor-pointer"
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-[#0878F9] hover:underline shrink-0 cursor-pointer"
                           >
                             <Plus className="w-3 h-3" /> Create BOM Template
                           </button>
@@ -3358,14 +3545,14 @@ export default function FactorySettingsTab() {
                     }
 
                     return (
-                      <div className="space-y-2 p-3.5 rounded-xl bg-white dark:bg-white border border-purple-200 dark:border-purple-800">
-                        <div className="flex items-center justify-between text-xs font-bold text-purple-900 dark:text-purple-200">
+                      <div className="space-y-2 p-3.5 rounded-xl bg-white border border-[#D8E8FA]">
+                        <div className="flex items-center justify-between text-xs font-bold text-[#0B2148]">
                           <span>BOM Kit Component Breakdown ({activeBom.items.length} materials):</span>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => handleOpenBomModal(activeBom)}
-                              className="text-[10px] font-semibold text-purple-600 dark:text-purple-400 hover:underline flex items-center gap-1 cursor-pointer"
+                              className="text-[10px] font-semibold text-[#0878F9] hover:underline flex items-center gap-1 cursor-pointer"
                             >
                               <Edit className="w-3 h-3" /> Edit Components
                             </button>
@@ -3374,11 +3561,11 @@ export default function FactorySettingsTab() {
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-36 overflow-y-auto pr-1">
                           {activeBom.items.map((item: any, idx: number) => (
-                            <div key={idx} className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col justify-between text-[11px]">
-                              <p className="font-semibold text-slate-900 dark:text-[#0B2148] truncate">{item.material?.name || `Part #${item.materialId?.slice(0, 8)}`}</p>
+                            <div key={idx} className="p-2 rounded-lg bg-[#F4F9FF] border border-[#D8E8FA] flex flex-col justify-between text-[11px]">
+                              <p className="font-semibold text-[#0B2148] truncate">{item.material?.name || `Part #${item.materialId?.slice(0, 8)}`}</p>
                               <div className="flex items-center justify-between mt-1 text-[10px] font-mono text-[#526B91]">
                                 <span className="truncate">{item.material?.sku || "SKU"}</span>
-                                <span className="font-bold text-purple-600 dark:text-purple-400">Qty: {item.quantity}</span>
+                                <span className="font-bold text-[#0878F9]">Qty: {item.quantity}</span>
                               </div>
                             </div>
                           ))}
@@ -3388,8 +3575,8 @@ export default function FactorySettingsTab() {
                   })()}
                 </div>
                 {/* 4. Cell Quality Testing & Grading Thresholds */}
-                <div className="p-4 bg-slate-50/70 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4">
-                  <p className="text-xs font-bold text-slate-800 dark:text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
+                <div className="p-4 bg-[#F4F9FF] border border-[#D8E8FA] rounded-2xl space-y-4">
+                  <p className="text-xs font-bold text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
                     <Sliders className="w-3.5 h-3.5 text-blue-600" />
                     4. Cell Quality Testing & Grading Thresholds
                   </p>
@@ -3397,7 +3584,7 @@ export default function FactorySettingsTab() {
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {/* Ah Min */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-[#526B91] dark:text-[#0B2148]">
+                      <label className="text-[11px] font-semibold text-[#526B91]">
                         Min Capacity (Ah) *
                       </label>
                       <input 
@@ -3407,13 +3594,13 @@ export default function FactorySettingsTab() {
                         min="0.1"
                         defaultValue={selectedPaxType?.ahMin ?? 3.1}
                         required
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
 
                     {/* Ah Max */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-[#526B91] dark:text-[#0B2148]">
+                      <label className="text-[11px] font-semibold text-[#526B91]">
                         Max Capacity (Ah) *
                       </label>
                       <input 
@@ -3423,13 +3610,13 @@ export default function FactorySettingsTab() {
                         min="0.1"
                         defaultValue={selectedPaxType?.ahMax ?? 3.5}
                         required
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
 
                     {/* IR Min */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-[#526B91] dark:text-[#0B2148]">
+                      <label className="text-[11px] font-semibold text-[#526B91]">
                         Min IR (mΩ) *
                       </label>
                       <input 
@@ -3439,13 +3626,13 @@ export default function FactorySettingsTab() {
                         min="0.1"
                         defaultValue={selectedPaxType?.irMin ?? 10.0}
                         required
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
 
                     {/* IR Max */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-[#526B91] dark:text-[#0B2148]">
+                      <label className="text-[11px] font-semibold text-[#526B91]">
                         Max IR (mΩ) *
                       </label>
                       <input 
@@ -3455,13 +3642,13 @@ export default function FactorySettingsTab() {
                         min="0.1"
                         defaultValue={selectedPaxType?.irMax ?? 30.0}
                         required
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
 
                     {/* Retest Ah Margin */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-[#526B91] dark:text-[#0B2148]">
+                      <label className="text-[11px] font-semibold text-[#526B91]">
                         Retest Ah Margin
                       </label>
                       <input 
@@ -3470,13 +3657,13 @@ export default function FactorySettingsTab() {
                         step="0.01"
                         min="0"
                         defaultValue={selectedPaxType?.retestAhMargin ?? 0.1}
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-2.5 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
 
                     {/* Retest IR Margin */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-[#526B91] dark:text-[#0B2148]">
+                      <label className="text-[11px] font-semibold text-[#526B91]">
                         Retest IR Margin (mΩ)
                       </label>
                       <input 
@@ -3485,13 +3672,13 @@ export default function FactorySettingsTab() {
                         step="0.1"
                         min="0"
                         defaultValue={selectedPaxType?.retestIrMargin ?? 2.0}
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-2.5 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
 
                     {/* Hard Fail Ah */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-[#526B91] dark:text-[#0B2148]">
+                      <label className="text-[11px] font-semibold text-[#526B91]">
                         Hard Fail Below Ah
                       </label>
                       <input 
@@ -3500,13 +3687,13 @@ export default function FactorySettingsTab() {
                         step="0.01"
                         min="0"
                         defaultValue={selectedPaxType?.hardFailAh ?? 3.0}
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-2.5 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
 
                     {/* Hard Fail IR */}
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-[#526B91] dark:text-[#0B2148]">
+                      <label className="text-[11px] font-semibold text-[#526B91]">
                         Hard Fail Above IR (mΩ)
                       </label>
                       <input 
@@ -3515,7 +3702,7 @@ export default function FactorySettingsTab() {
                         step="0.1"
                         min="0"
                         defaultValue={selectedPaxType?.hardFailIr ?? 70.0}
-                        className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-2.5 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600"
                       />
                     </div>
                   </div>
@@ -3524,14 +3711,14 @@ export default function FactorySettingsTab() {
                 {/* 5. Clustering Delta Tolerances & Allowed Grades */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Delta Tolerances */}
-                  <div className="space-y-3 p-4 bg-slate-50/70 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800 rounded-2xl">
-                    <p className="text-xs font-bold text-slate-800 dark:text-[#0B2148] uppercase tracking-wider">
+                  <div className="space-y-3 p-4 bg-[#F4F9FF] border border-[#D8E8FA] rounded-2xl">
+                    <p className="text-xs font-bold text-[#0B2148] uppercase tracking-wider">
                       5. Clustering Delta Tolerances
                     </p>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-[#526B91] dark:text-[#0B2148]">
+                        <label className="text-[11px] font-semibold text-[#526B91]">
                           Max ΔAh (Delta) *
                         </label>
                         <input 
@@ -3541,12 +3728,12 @@ export default function FactorySettingsTab() {
                           min="0"
                           defaultValue={selectedPaxType?.maxAhDifference ?? 0.05}
                           required
-                          className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                          className="w-full bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[11px] font-semibold text-[#526B91] dark:text-[#0B2148]">
+                        <label className="text-[11px] font-semibold text-[#526B91]">
                           Max ΔIR (mΩ) *
                         </label>
                         <input 
@@ -3556,16 +3743,16 @@ export default function FactorySettingsTab() {
                           min="0"
                           defaultValue={selectedPaxType?.maxIrDifference ?? 3.0}
                           required
-                          className="w-full bg-white dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600"
+                          className="w-full bg-white border border-[#D8E8FA] rounded-xl py-1.5 px-2.5 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600"
                         />
                       </div>
                     </div>
                   </div>
 
                   {/* Allowed Grades Chips */}
-                  <div className="space-y-2 p-4 bg-slate-50/70 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-800 rounded-2xl">
+                  <div className="space-y-2 p-4 bg-[#F4F9FF] border border-[#D8E8FA] rounded-2xl">
                     <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-slate-800 dark:text-[#0B2148] uppercase tracking-wider">
+                      <p className="text-xs font-bold text-[#0B2148] uppercase tracking-wider">
                         Allowed Cell Quality Grades *
                       </p>
                       <span className="text-[10px] text-[#526B91] font-mono">
@@ -3594,7 +3781,7 @@ export default function FactorySettingsTab() {
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono text-xs font-bold transition-all border cursor-pointer ${
                               isSelected
                                 ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                                : "bg-white dark:bg-slate-900 text-[#526B91] dark:text-[#526B91] border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                                : "bg-white  text-[#526B91]  border-[#D8E8FA]  hover:border-[#D8E8FA]"
                             }`}
                           >
                             {isSelected && <Check className="w-3 h-3" />}
@@ -3608,7 +3795,7 @@ export default function FactorySettingsTab() {
 
                 {/* 6. Feature Toggles */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <label className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer">
+                  <label className="flex items-center gap-3 p-3 bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl cursor-pointer">
                     <input 
                       name="autoPackEnabled"
                       type="checkbox"
@@ -3616,35 +3803,35 @@ export default function FactorySettingsTab() {
                       className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
                     />
                     <div>
-                      <p className="text-xs font-semibold text-slate-900 dark:text-[#0B2148]">Auto-Pack Clustering</p>
+                      <p className="text-xs font-semibold text-[#0B2148]">Auto-Pack Clustering</p>
                       <p className="text-[10px] text-[#526B91]">Allow engine to auto-allocate compatible cells to this model</p>
                     </div>
                   </label>
 
-                  <label className="flex items-center gap-3 p-3 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl cursor-pointer">
+                  <label className="flex items-center gap-3 p-3 bg-[#EAF5FF] border border-[#D8E8FA] rounded-xl cursor-pointer">
                     <input 
                       name="isProductionActive"
                       type="checkbox"
                       defaultChecked={selectedPaxType ? selectedPaxType.isProductionActive : false}
-                      className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
+                      className="w-4 h-4 rounded text-[#0878F9] focus:ring-[#0878F9]"
                     />
                     <div>
-                      <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-200 flex items-center gap-1">
-                        <Star className="w-3 h-3 text-emerald-600" />
+                      <p className="text-xs font-semibold text-[#0B2148] flex items-center gap-1">
+                        <Star className="w-3 h-3 text-[#0878F9]" />
                         Set as Active Factory Model
                       </p>
-                      <p className="text-[10px] text-emerald-700 dark:text-[#166534]">Immediately switches current line QC & assembly to this model</p>
+                      <p className="text-[10px] text-[#526B91]">Immediately switches current line QC & assembly to this model</p>
                     </div>
                   </label>
                 </div>
                 </div>
 
                 {/* Sticky Visible Modal Footer */}
-                <div className="p-4 bg-slate-50 border-t border-[#D8E8FA] flex items-center justify-end gap-2.5 shrink-0">
+                <div className="p-4 bg-[#F4F9FF] border-t border-[#D8E8FA] flex items-center justify-end gap-2.5 shrink-0">
                   <button 
                     type="button" 
                     onClick={() => setIsPaxModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#526B91] hover:text-[#0B2148] hover:bg-slate-200/60 bg-white border border-[#D8E8FA] transition-all cursor-pointer shadow-2xs"
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-[#526B91] hover:text-[#0B2148] hover:bg-[#EAF5FF]/60 bg-white border border-[#D8E8FA] transition-all cursor-pointer shadow-2xs"
                   >
                     Cancel
                   </button>
@@ -3680,17 +3867,17 @@ export default function FactorySettingsTab() {
               initial={{ opacity: 0, scale: 0.97, y: 10 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.97, y: 10 }}
-              className="relative w-full max-w-5xl bg-white dark:bg-white border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-10 text-slate-900 dark:text-[#0B2148]"
+              className="relative w-full max-w-5xl bg-white border border-[#D8E8FA] rounded-2xl shadow-2xl overflow-hidden z-10 text-[#0B2148]"
             >
-              <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-purple-50/50 dark:bg-purple-950/30">
+              <div className="p-5 border-b border-[#D8E8FA] flex items-center justify-between bg-[#EAF5FF]/60">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-sm">
+                  <div className="w-9 h-9 rounded-xl bg-[#0878F9] text-white flex items-center justify-center shadow-sm">
                     <Component className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148] flex items-center gap-2">
+                    <h3 className="text-base font-bold text-[#0B2148] flex items-center gap-2">
                       <span>{previewBomModalItem.name}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[10px] font-mono font-bold">
+                      <span className="px-2 py-0.5 rounded-full bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA] text-[10px] font-mono font-bold">
                         {previewBomModalItem.items?.length || 0} Components
                       </span>
                     </h3>
@@ -3702,7 +3889,7 @@ export default function FactorySettingsTab() {
                 <button 
                   type="button"
                   onClick={() => setPreviewBomModalItem(null)} 
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-[#526B91] hover:text-[#526B91] dark:hover:text-white transition-all cursor-pointer"
+                  className="p-1.5 hover:bg-[#F4F9FF] rounded-lg text-[#526B91] hover:text-[#526B91] transition-all cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -3712,15 +3899,15 @@ export default function FactorySettingsTab() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="bg-slate-50/80 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700">
-                        <th className="px-4 py-2.5 font-semibold text-[#526B91] dark:text-[#526B91]">#</th>
-                        <th className="px-4 py-2.5 font-semibold text-[#526B91] dark:text-[#526B91]">Material Name</th>
-                        <th className="px-4 py-2.5 font-semibold text-[#526B91] dark:text-[#526B91]">Part SKU / Code</th>
-                        <th className="px-4 py-2.5 font-semibold text-[#526B91] dark:text-[#526B91]">Category</th>
-                        <th className="px-4 py-2.5 font-semibold text-[#526B91] dark:text-[#526B91] text-right">Required Qty</th>
+                      <tr className="bg-[#F4F9FF] border-b border-[#D8E8FA]">
+                        <th className="px-4 py-2.5 font-semibold text-[#526B91]">#</th>
+                        <th className="px-4 py-2.5 font-semibold text-[#526B91]">Material Name</th>
+                        <th className="px-4 py-2.5 font-semibold text-[#526B91]">Part SKU / Code</th>
+                        <th className="px-4 py-2.5 font-semibold text-[#526B91]">Category</th>
+                        <th className="px-4 py-2.5 font-semibold text-[#526B91] text-right">Required Qty</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody className="divide-y divide-[#D8E8FA]">
                       {(!previewBomModalItem.items || previewBomModalItem.items.length === 0) ? (
                         <tr>
                           <td colSpan={5} className="px-4 py-8 text-center text-[#526B91] text-xs">
@@ -3729,20 +3916,20 @@ export default function FactorySettingsTab() {
                         </tr>
                       ) : (
                         previewBomModalItem.items.map((item: any, idx: number) => (
-                          <tr key={item.id || idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                          <tr key={item.id || idx} className="hover:bg-[#F4F9FF]">
                             <td className="px-4 py-2.5 font-mono text-[#526B91]">{idx + 1}</td>
-                            <td className="px-4 py-2.5 font-semibold text-slate-900 dark:text-[#0B2148]">
+                            <td className="px-4 py-2.5 font-semibold text-[#0B2148]">
                               {item.material?.name || "Material Item"}
                             </td>
-                            <td className="px-4 py-2.5 font-mono text-[#526B91] dark:text-[#0B2148]">
+                            <td className="px-4 py-2.5 font-mono text-[#526B91]">
                               {item.material?.sku || "-"}
                             </td>
                             <td className="px-4 py-2.5">
-                              <span className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono text-[#526B91] dark:text-[#0B2148]">
+                              <span className="px-2 py-0.5 rounded bg-[#F4F9FF] text-[10px] font-mono text-[#526B91]">
                                 {item.material?.category || "RAW"}
                               </span>
                             </td>
-                            <td className="px-4 py-2.5 font-mono font-bold text-purple-600 dark:text-purple-400 text-right">
+                            <td className="px-4 py-2.5 font-mono font-bold text-[#0878F9] text-right">
                               {item.quantity} {item.material?.unit || "pcs"}
                             </td>
                           </tr>
@@ -3753,11 +3940,11 @@ export default function FactorySettingsTab() {
                 </div>
               </div>
 
-              <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end bg-slate-50/40 dark:bg-white">
+              <div className="p-4 border-t border-[#D8E8FA] flex items-center justify-end bg-[#F4F9FF]">
                 <button
                   type="button"
                   onClick={() => setPreviewBomModalItem(null)}
-                  className="px-4 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-[#0B2148] font-semibold text-xs cursor-pointer"
+                  className="px-4 py-1.5 rounded-xl bg-[#F4F9FF] hover:bg-[#EAF5FF] text-[#0B2148] font-semibold text-xs cursor-pointer"
                 >
                   Close
                 </button>
@@ -3800,7 +3987,7 @@ export default function FactorySettingsTab() {
                       <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border ${
                         selectedMaterial 
                           ? "bg-blue-50 text-blue-700 border-blue-200" 
-                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-[#EAF5FF] text-[#0878F9] border-[#D8E8FA]"
                       }`}>
                         {selectedMaterial ? `SKU: ${selectedMaterial.sku}` : "New Component Master"}
                       </span>
@@ -3813,7 +4000,7 @@ export default function FactorySettingsTab() {
                 <button 
                   type="button"
                   onClick={() => setIsMaterialModalOpen(false)} 
-                  className="p-1.5 hover:bg-slate-100 rounded-lg text-[#526B91] hover:text-[#0B2148] transition-all cursor-pointer"
+                  className="p-1.5 hover:bg-[#F4F9FF] rounded-lg text-[#526B91] hover:text-[#0B2148] transition-all cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -3822,9 +4009,9 @@ export default function FactorySettingsTab() {
               {/* Form Content */}
               <form id="material-sku-form" onSubmit={handleMaterialFormSubmit} className="p-5 sm:p-6 space-y-5 flex-1 overflow-y-auto">
                 {/* 1. Component Identification & Part Number Section */}
-                <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-3.5">
+                <div className="p-4 bg-[#F4F9FF] border border-[#D8E8FA] rounded-2xl space-y-3.5">
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <p className="text-xs font-bold text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
                       <Tag className="w-3.5 h-3.5 text-blue-600" />
                       1. Master Part Number & Identity
                     </p>
@@ -3836,7 +4023,7 @@ export default function FactorySettingsTab() {
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
                     {/* Part Number / SKU */}
                     <div className="md:col-span-4 space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                      <label className="text-xs font-semibold text-[#0B2148] flex items-center justify-between">
                         <span>Part Number / SKU *</span>
                         <span className="text-[10px] text-[#526B91]">Unique Identifier</span>
                       </label>
@@ -3849,7 +4036,7 @@ export default function FactorySettingsTab() {
                         className={`w-full bg-white border rounded-xl py-2 px-3 text-xs font-mono font-bold focus:outline-none shadow-xs ${
                           materialSkuConflict 
                             ? "border-red-500 text-red-600 focus:ring-1 focus:ring-red-500" 
-                            : "border-slate-300 text-blue-600 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                            : "border-[#D8E8FA] text-blue-600 focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                         }`}
                       />
                       {/* Duplicate Validation Status */}
@@ -3861,7 +4048,7 @@ export default function FactorySettingsTab() {
                           </span>
                         </p>
                       ) : trimmedMaterialSku ? (
-                        <p className="text-[11px] font-medium text-emerald-600 flex items-center gap-1 mt-1">
+                        <p className="text-[11px] font-medium text-[#0878F9] flex items-center gap-1 mt-1">
                           <CheckCircle2 className="w-3 h-3 shrink-0" />
                           <span>Part Number is unique & available</span>
                         </p>
@@ -3870,7 +4057,7 @@ export default function FactorySettingsTab() {
 
                     {/* Internal Material Code */}
                     <div className="md:col-span-3 space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Internal Material Code
                       </label>
                       <input 
@@ -3878,13 +4065,13 @@ export default function FactorySettingsTab() {
                         value={materialFormCode}
                         onChange={(e) => setMaterialFormCode(e.target.value)}
                         placeholder="e.g. MAT-BMS-001, KZ-HW-042"
-                        className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 shadow-xs"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 shadow-xs"
                       />
                     </div>
 
                     {/* Material Name / Identity */}
                     <div className="md:col-span-5 space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Material Name / Commercial Identity *
                       </label>
                       <input 
@@ -3893,7 +4080,7 @@ export default function FactorySettingsTab() {
                         onChange={(e) => setMaterialFormName(e.target.value)}
                         required
                         placeholder="e.g. Smart BMS 16S 100A CAN/RS485 Common Port with NTC"
-                        className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs font-semibold text-[#0B2148] focus:outline-none focus:border-blue-600 shadow-xs"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-semibold text-[#0B2148] focus:outline-none focus:border-blue-600 shadow-xs"
                       />
                     </div>
                   </div>
@@ -3910,7 +4097,7 @@ export default function FactorySettingsTab() {
                     {/* Category with Inline Quick-Create */}
                     <div className="md:col-span-5 space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-slate-700">
+                        <label className="text-xs font-semibold text-[#0B2148]">
                           Material Category *
                         </label>
                         <button
@@ -3930,7 +4117,7 @@ export default function FactorySettingsTab() {
                               value={inlineCategoryName}
                               onChange={(e) => setInlineCategoryName(e.target.value)}
                               placeholder="New category name..."
-                              className="flex-1 bg-slate-50 border border-slate-300 rounded-lg py-1.5 px-2.5 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600"
+                              className="flex-1 bg-[#F4F9FF] border border-[#D8E8FA] rounded-lg py-1.5 px-2.5 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600"
                             />
                             <button
                               type="button"
@@ -3943,7 +4130,7 @@ export default function FactorySettingsTab() {
                             <button
                               type="button"
                               onClick={() => setIsInlineCategoryOpen(false)}
-                              className="text-[#526B91] hover:text-slate-700 text-xs px-2 py-1 cursor-pointer"
+                              className="text-[#526B91] hover:text-[#0B2148] text-xs px-2 py-1 cursor-pointer"
                             >
                               Cancel
                             </button>
@@ -3954,7 +4141,7 @@ export default function FactorySettingsTab() {
                       <select
                         value={selectedCategoryValue}
                         onChange={(e) => setSelectedCategoryValue(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs font-semibold text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer shadow-xs"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-semibold text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer shadow-xs"
                       >
                         {allAvailableCategories.map(cat => (
                           <option key={cat} value={cat}>{cat}</option>
@@ -3964,7 +4151,7 @@ export default function FactorySettingsTab() {
 
                     {/* Material Type (QTZ / NQZ) */}
                     <div className="md:col-span-4 space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Quality Testing Tier (Type) *
                       </label>
                       <div className="grid grid-cols-2 gap-2">
@@ -3974,7 +4161,7 @@ export default function FactorySettingsTab() {
                           className={`py-2 px-3 rounded-xl font-mono text-xs font-bold border transition-all cursor-pointer flex flex-col items-center ${
                             materialTypeValue === "QTZ"
                               ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                              : "bg-white text-slate-700 border-slate-300 hover:border-slate-400"
+                              : "bg-white text-[#0B2148] border-[#D8E8FA] hover:border-slate-400"
                           }`}
                         >
                           <span>QTZ</span>
@@ -3986,7 +4173,7 @@ export default function FactorySettingsTab() {
                           className={`py-2 px-3 rounded-xl font-mono text-xs font-bold border transition-all cursor-pointer flex flex-col items-center ${
                             materialTypeValue === "NQZ"
                               ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                              : "bg-white text-slate-700 border-slate-300 hover:border-slate-400"
+                              : "bg-white text-[#0B2148] border-[#D8E8FA] hover:border-slate-400"
                           }`}
                         >
                           <span>NQZ</span>
@@ -3997,13 +4184,13 @@ export default function FactorySettingsTab() {
 
                     {/* Unit of Measure */}
                     <div className="md:col-span-3 space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Unit of Measure *
                       </label>
                       <select
                         value={materialFormUnit}
                         onChange={(e) => setMaterialFormUnit(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs font-mono font-semibold text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer shadow-xs"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-semibold text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer shadow-xs"
                       >
                         {UNIT_OPTIONS.map(u => (
                           <option key={u} value={u}>{u}</option>
@@ -4015,25 +4202,25 @@ export default function FactorySettingsTab() {
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 pt-1">
                     {/* Standard Unit Cost */}
                     <div className="md:col-span-4 space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
-                        Standard Base Cost (₹)
+                      <label className="text-xs font-semibold text-[#0B2148]">
+                        Standard Base Cost ({activeCurrencySymbol})
                       </label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#526B91] font-mono text-xs">₹</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#526B91] font-mono text-xs">{activeCurrencySymbol}</span>
                         <input 
                           type="number"
                           step="0.01"
                           min="0"
                           value={materialFormUnitPrice}
                           onChange={(e) => setMaterialFormUnitPrice(e.target.value)}
-                          className="w-full bg-white border border-slate-300 rounded-xl py-2 pl-7 pr-3 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600 shadow-xs"
+                          className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 pl-9 pr-3 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600 shadow-xs"
                         />
                       </div>
                     </div>
 
                     {/* Minimum Safety Stock */}
                     <div className="md:col-span-4 space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         Minimum Safety Stock Level
                       </label>
                       <input 
@@ -4041,20 +4228,20 @@ export default function FactorySettingsTab() {
                         min="0"
                         value={materialFormMinStock}
                         onChange={(e) => setMaterialFormMinStock(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 shadow-xs"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 shadow-xs"
                       />
                     </div>
 
                     {/* Active Toggle */}
                     <div className="md:col-span-4 flex items-end">
-                      <label className="w-full flex items-center gap-2.5 p-2 bg-white border border-slate-300 rounded-xl cursor-pointer hover:border-slate-400 transition-colors shadow-xs h-[38px]">
+                      <label className="w-full flex items-center gap-2.5 p-2 bg-white border border-[#D8E8FA] rounded-xl cursor-pointer hover:border-slate-400 transition-colors shadow-xs h-[38px]">
                         <input 
                           type="checkbox"
                           checked={materialFormIsActive}
                           onChange={(e) => setMaterialFormIsActive(e.target.checked)}
                           className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
                         />
-                        <span className="text-xs font-medium text-slate-800">
+                        <span className="text-xs font-medium text-[#0B2148]">
                           Active in BOM & Catalog
                         </span>
                       </label>
@@ -4063,8 +4250,8 @@ export default function FactorySettingsTab() {
                 </div>
 
                 {/* 3. Technical Notes & Application Scope */}
-                <div className="p-4 bg-slate-50/70 border border-slate-200 rounded-2xl space-y-2">
-                  <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                <div className="p-4 bg-[#F4F9FF] border border-[#D8E8FA] rounded-2xl space-y-2">
+                  <label className="text-xs font-semibold text-[#0B2148] flex items-center justify-between">
                     <span>Technical Notes & Specifications (Optional)</span>
                     <span className="text-[10px] text-[#526B91]">Shown in BOM component picker</span>
                   </label>
@@ -4073,7 +4260,7 @@ export default function FactorySettingsTab() {
                     onChange={(e) => setMaterialFormDescription(e.target.value)}
                     rows={2}
                     placeholder="e.g. 16S 100A continuous discharge, Bluetooth app support, includes NTC temperature sensors, CAN & RS485 communication..."
-                    className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 shadow-xs"
+                    className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 shadow-xs"
                   />
                 </div>
               </form>
@@ -4097,7 +4284,7 @@ export default function FactorySettingsTab() {
                   <button 
                     type="button" 
                     onClick={() => setIsMaterialModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-slate-100 transition-colors cursor-pointer"
+                    className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -4134,11 +4321,11 @@ export default function FactorySettingsTab() {
               initial={{ opacity: 0, scale: 0.97, y: 10 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.97, y: 10 }}
-              className="relative w-full max-w-2xl max-h-[88vh] flex flex-col bg-white dark:bg-white border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden z-10 text-slate-900 dark:text-[#0B2148]"
+              className="relative w-full max-w-2xl max-h-[88vh] flex flex-col bg-white border border-[#D8E8FA] rounded-2xl shadow-xl overflow-hidden z-10 text-[#0B2148]"
             >
-              <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <div className="p-5 border-b border-[#D8E8FA] flex items-center justify-between shrink-0">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148]">
+                  <h3 className="text-base font-bold text-[#0B2148]">
                     {selectedCell ? "Edit Cell Part Number" : "Add Cell Part Number"}
                   </h3>
                   <p className="text-xs text-[#526B91] mt-0.5">
@@ -4148,7 +4335,7 @@ export default function FactorySettingsTab() {
                 <button 
                   type="button"
                   onClick={() => setIsCellModalOpen(false)} 
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-[#526B91] hover:text-[#526B91] dark:hover:text-white transition-all cursor-pointer"
+                  className="p-1.5 hover:bg-[#F4F9FF] rounded-lg text-[#526B91] hover:text-[#526B91] transition-all cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -4158,7 +4345,7 @@ export default function FactorySettingsTab() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Cell Part Number */}
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                    <label className="text-xs font-semibold text-[#0B2148]">
                       Cell Part Number / SKU *
                     </label>
                     <input 
@@ -4166,13 +4353,13 @@ export default function FactorySettingsTab() {
                       defaultValue={selectedCell?.cellSku}
                       required
                       placeholder="e.g. CELL-LFP-3200"
-                      className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono font-semibold text-blue-600 dark:text-blue-400 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-semibold text-blue-600 focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     />
                   </div>
 
                   {/* Cell Name */}
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                    <label className="text-xs font-semibold text-[#0B2148]">
                       Cell Specification / Name *
                     </label>
                     <input 
@@ -4180,19 +4367,19 @@ export default function FactorySettingsTab() {
                       defaultValue={selectedCell?.cellName}
                       required
                       placeholder="e.g. 3.2V 3200mAh Cylindrical Cell"
-                      className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     />
                   </div>
 
                   {/* Chemistry */}
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                    <label className="text-xs font-semibold text-[#0B2148]">
                       Cell Chemistry *
                     </label>
                     <select
                       name="chemistry"
                       defaultValue={selectedCell?.chemistry || "LFP"}
-                      className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer"
                     >
                       {CHEMISTRY_OPTIONS.map(c => (
                         <option key={c} value={c}>{c}</option>
@@ -4202,20 +4389,20 @@ export default function FactorySettingsTab() {
 
                   {/* Supplier */}
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                    <label className="text-xs font-semibold text-[#0B2148]">
                       Manufacturer / Supplier
                     </label>
                     <input 
                       name="supplier"
                       defaultValue={selectedCell?.supplier}
                       placeholder="e.g. EVE Energy / CATL"
-                      className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     />
                   </div>
 
                   {/* Nominal Voltage */}
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                    <label className="text-xs font-semibold text-[#0B2148]">
                       Nominal Voltage (V) *
                     </label>
                     <input 
@@ -4225,13 +4412,13 @@ export default function FactorySettingsTab() {
                       min="0.1"
                       defaultValue={selectedCell?.nominalVoltage ?? 3.2}
                       required
-                      className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     />
                   </div>
 
                   {/* Nominal Capacity */}
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                    <label className="text-xs font-semibold text-[#0B2148]">
                       Nominal Capacity (Ah) *
                     </label>
                     <input 
@@ -4241,20 +4428,20 @@ export default function FactorySettingsTab() {
                       min="0.1"
                       defaultValue={selectedCell?.nominalCapacity ?? 3.2}
                       required
-                      className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                      className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                     />
                   </div>
 
                   {/* Active Toggle */}
                   <div className="sm:col-span-2">
-                    <label className="flex items-center gap-2.5 p-2.5 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer">
+                    <label className="flex items-center gap-2.5 p-2.5 bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl cursor-pointer">
                       <input 
                         name="isActive"
                         type="checkbox"
                         defaultChecked={selectedCell ? selectedCell.isActive !== false : true}
                         className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-xs font-medium text-slate-700 dark:text-[#0B2148]">
+                      <span className="text-xs font-medium text-[#0B2148]">
                         Active Master Cell Part Number
                       </span>
                     </label>
@@ -4263,11 +4450,11 @@ export default function FactorySettingsTab() {
               </form>
 
               {/* Sticky Action Footer */}
-              <div className="flex items-center justify-end gap-2.5 p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-white shrink-0">
+              <div className="flex items-center justify-end gap-2.5 p-4 border-t border-[#D8E8FA] bg-[#F4F9FF] shrink-0">
                 <button 
                   type="button" 
                   onClick={() => setIsCellModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -4303,11 +4490,11 @@ export default function FactorySettingsTab() {
               initial={{ opacity: 0, scale: 0.97, y: 10 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.97, y: 10 }}
-              className="relative w-full max-w-md max-h-[85vh] flex flex-col bg-white dark:bg-white border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden z-10 text-slate-900 dark:text-[#0B2148]"
+              className="relative w-full max-w-md max-h-[85vh] flex flex-col bg-white border border-[#D8E8FA] rounded-2xl shadow-xl overflow-hidden z-10 text-[#0B2148]"
             >
-              <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+              <div className="p-5 border-b border-[#D8E8FA] flex items-center justify-between shrink-0">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148]">New Material Category</h3>
+                  <h3 className="text-base font-bold text-[#0B2148]">New Material Category</h3>
                   <p className="text-xs text-[#526B91] mt-0.5">
                     Register a new classification tag
                   </p>
@@ -4315,7 +4502,7 @@ export default function FactorySettingsTab() {
                 <button 
                   type="button"
                   onClick={() => setIsCategoryModalOpen(false)} 
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-[#526B91] hover:text-[#526B91] dark:hover:text-white transition-all cursor-pointer"
+                  className="p-1.5 hover:bg-[#F4F9FF] rounded-lg text-[#526B91] hover:text-[#526B91] transition-all cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -4323,7 +4510,7 @@ export default function FactorySettingsTab() {
 
               <form id="category-create-form" onSubmit={handleCreateCategorySubmit} className="p-5 space-y-4 flex-1 overflow-y-auto">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-700 dark:text-[#0B2148]">
+                  <label className="text-xs font-semibold text-[#0B2148]">
                     Category Name *
                   </label>
                   <input
@@ -4332,7 +4519,7 @@ export default function FactorySettingsTab() {
                     onChange={(e) => setNewCategoryInput(e.target.value)}
                     required
                     placeholder="e.g. THERMAL_PAD, BUSBAR_INSULATOR"
-                    className="w-full bg-slate-50 dark:bg-white border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs font-mono font-bold text-slate-900 dark:text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-bold text-[#0B2148] focus:outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
                   />
                   <p className="text-[11px] text-[#526B91]">
                     Names are automatically formatted to uppercase.
@@ -4341,11 +4528,11 @@ export default function FactorySettingsTab() {
               </form>
 
               {/* Sticky Action Footer */}
-              <div className="flex items-center justify-end gap-2.5 p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-white shrink-0">
+              <div className="flex items-center justify-end gap-2.5 p-4 border-t border-[#D8E8FA] bg-[#F4F9FF] shrink-0">
                 <button 
                   type="button" 
                   onClick={() => setIsCategoryModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -4385,9 +4572,9 @@ export default function FactorySettingsTab() {
             >
               <form id="bom-master-form" onSubmit={handleBomFormSubmit} className="flex flex-col h-full max-h-[92vh]">
                 {/* Modal Header */}
-                <div className="p-4 sm:p-5 border-b border-[#D8E8FA] flex items-center justify-between bg-purple-50/60 shrink-0">
+                <div className="p-4 sm:p-5 border-b border-[#D8E8FA] flex items-center justify-between bg-[#EAF5FF]/60 shrink-0">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-sm">
+                    <div className="w-10 h-10 rounded-xl bg-[#0878F9] text-white flex items-center justify-center shadow-sm">
                       <Component className="w-5 h-5" />
                     </div>
                     <div>
@@ -4395,10 +4582,10 @@ export default function FactorySettingsTab() {
                         <h3 className="text-base font-bold text-[#0B2148]">
                           {selectedBom ? "Edit BOM Master Template" : "Register BOM Master Template"}
                         </h3>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-purple-100 text-purple-700 border border-purple-200">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]">
                           {bomFormItems.length} Material Types
                         </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-[#526B91] border border-slate-200">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-[#F4F9FF] text-[#526B91] border border-[#D8E8FA]">
                           {totalBomPiecesCount} Parts Total
                         </span>
                       </div>
@@ -4410,17 +4597,17 @@ export default function FactorySettingsTab() {
                   <button 
                     type="button"
                     onClick={() => setIsBomModalOpen(false)} 
-                    className="p-1.5 hover:bg-slate-100 rounded-lg text-[#526B91] hover:text-[#0B2148] transition-all cursor-pointer"
+                    className="p-1.5 hover:bg-[#F4F9FF] rounded-lg text-[#526B91] hover:text-[#0B2148] transition-all cursor-pointer"
                   >
                     <X className="w-4 h-4" />
                   </button>
                 </div>
 
                 {/* Top BOM Identification Code & Scope */}
-                <div className="p-4 border-b border-slate-200/80 bg-slate-50/70 shrink-0">
+                <div className="p-4 border-b border-[#D8E8FA] bg-[#F4F9FF] shrink-0">
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                     <div className="md:col-span-5 space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 flex items-center justify-between">
+                      <label className="text-xs font-semibold text-[#0B2148] flex items-center justify-between">
                         <span>BOM Drawing Code / BOM Number *</span>
                         <span className="text-[10px] text-[#526B91]">Unique Identifier</span>
                       </label>
@@ -4430,12 +4617,12 @@ export default function FactorySettingsTab() {
                         onChange={(e) => setBomFormName(e.target.value)}
                         required
                         placeholder="e.g. BOM-KYRA-48V-100-REV1, BOM-KZ-72V-45AH"
-                        className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs font-mono font-bold text-purple-700 focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-600 shadow-xs"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-bold text-[#0878F9] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] shadow-xs"
                       />
                     </div>
 
                     <div className="md:col-span-7 space-y-1">
-                      <label className="text-xs font-semibold text-slate-700">
+                      <label className="text-xs font-semibold text-[#0B2148]">
                         BOM Description / Assembly Scope
                       </label>
                       <input 
@@ -4443,21 +4630,21 @@ export default function FactorySettingsTab() {
                         value={bomFormDescription}
                         onChange={(e) => setBomFormDescription(e.target.value)}
                         placeholder="e.g. Standard 48V 100Ah LFP assembly kit with Smart BMS, Busbars, Wire harness, and Enclosure"
-                        className="w-full bg-white border border-slate-300 rounded-xl py-2 px-3 text-xs text-slate-900 focus:outline-none focus:border-purple-600 shadow-xs"
+                        className="w-full bg-white border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] shadow-xs"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Two-Column Split Workspace */}
-                <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-slate-100/60">
+                <div className="flex-1 overflow-y-auto p-4 sm:p-5 bg-[#F4F9FF]">
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
                     
                     {/* LEFT PANEL: Component Catalog & Multi-Parameter Search */}
-                    <div className="lg:col-span-6 bg-white border border-slate-200 rounded-2xl p-4 flex flex-col shadow-xs space-y-3">
-                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100">
+                    <div className="lg:col-span-6 bg-white border border-[#D8E8FA] rounded-2xl p-4 flex flex-col shadow-xs space-y-3">
+                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#D8E8FA]">
                         <div className="flex items-center gap-2">
-                          <Layers className="w-4 h-4 text-purple-600" />
+                          <Layers className="w-4 h-4 text-[#0878F9]" />
                           <h4 className="text-xs font-bold text-[#0B2148] uppercase tracking-wider">
                             1. Component Catalog Picker
                           </h4>
@@ -4469,7 +4656,7 @@ export default function FactorySettingsTab() {
 
                       {/* Multi-Parameter Search Bar */}
                       <div className="relative">
-                        <Search className="w-3.5 h-3.5 text-purple-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Search className="w-3.5 h-3.5 text-[#0878F9] absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
                           value={bomCatalogSearch}
@@ -4478,7 +4665,7 @@ export default function FactorySettingsTab() {
                             setBomCatalogPage(1);
                           }}
                           placeholder="Search SKU, name, code, parameter/specs, category..."
-                          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 pl-9 pr-8 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-purple-600 focus:bg-white focus:ring-1 focus:ring-purple-600 shadow-2xs"
+                          className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 pl-9 pr-8 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-[#0878F9] focus:bg-white focus:ring-1 focus:ring-[#0878F9] shadow-2xs"
                         />
                         {bomCatalogSearch && (
                           <button
@@ -4487,7 +4674,7 @@ export default function FactorySettingsTab() {
                               setBomCatalogSearch("");
                               setBomCatalogPage(1);
                             }}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#526B91] hover:text-slate-600 p-0.5 cursor-pointer"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#526B91] hover:text-[#526B91] p-0.5 cursor-pointer"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -4504,8 +4691,8 @@ export default function FactorySettingsTab() {
                           }}
                           className={`px-2.5 py-1 rounded-lg font-semibold text-[10px] uppercase tracking-wider shrink-0 transition-all cursor-pointer ${
                             bomCatalogCategoryFilter === "ALL"
-                              ? "bg-purple-600 text-white shadow-xs"
-                              : "bg-slate-100 text-[#526B91] hover:bg-slate-200"
+                              ? "bg-[#0878F9] text-white shadow-xs"
+                              : "bg-[#F4F9FF] text-[#526B91] hover:bg-[#EAF5FF]"
                           }`}
                         >
                           All ({ (materials || []).length })
@@ -4522,8 +4709,8 @@ export default function FactorySettingsTab() {
                               }}
                               className={`px-2.5 py-1 rounded-lg font-semibold text-[10px] uppercase tracking-wider shrink-0 transition-all cursor-pointer ${
                                 bomCatalogCategoryFilter.toUpperCase() === cat.toUpperCase()
-                                  ? "bg-purple-600 text-white shadow-xs"
-                                  : "bg-slate-100 text-[#526B91] hover:bg-slate-200"
+                                  ? "bg-[#0878F9] text-white shadow-xs"
+                                  : "bg-[#F4F9FF] text-[#526B91] hover:bg-[#EAF5FF]"
                               }`}
                             >
                               {cat} {count > 0 && `(${count})`}
@@ -4556,8 +4743,8 @@ export default function FactorySettingsTab() {
                               }}
                               className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold transition-all cursor-pointer ${
                                 bomCatalogPerPage === pp
-                                  ? "bg-purple-100 text-purple-700 border border-purple-300"
-                                  : "bg-slate-100 text-[#526B91] hover:bg-slate-200"
+                                  ? "bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]"
+                                  : "bg-[#F4F9FF] text-[#526B91] hover:bg-[#EAF5FF]"
                               }`}
                             >
                               {pp}
@@ -4569,7 +4756,7 @@ export default function FactorySettingsTab() {
                       {/* Catalog Cards List */}
                       <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                         {paginatedCatalogMaterials.length === 0 ? (
-                          <div className="p-8 text-center text-xs text-[#526B91] bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          <div className="p-8 text-center text-xs text-[#526B91] bg-[#F4F9FF] rounded-xl border border-dashed border-[#D8E8FA]">
                             No component materials match your search parameters.
                           </div>
                         ) : (
@@ -4582,17 +4769,17 @@ export default function FactorySettingsTab() {
                                 key={m.id}
                                 className={`p-3 rounded-xl border transition-all ${
                                   inBomQty > 0
-                                    ? "bg-purple-50/50 border-purple-300 shadow-2xs"
-                                    : "bg-white border-slate-200 hover:border-purple-200"
+                                    ? "bg-[#EAF5FF]/60 border-[#D8E8FA] shadow-2xs"
+                                    : "bg-white border-[#D8E8FA] hover:border-[#0878F9]/40"
                                 }`}
                               >
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="space-y-1 min-w-0">
                                     <div className="flex flex-wrap items-center gap-1.5">
-                                      <span className="font-mono font-bold text-xs text-purple-700">
+                                      <span className="font-mono font-bold text-xs text-[#0878F9]">
                                         {m.sku}
                                       </span>
-                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 text-[#526B91]">
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#F4F9FF] text-[#526B91]">
                                         {m.category}
                                       </span>
                                       {m.materialCode && (
@@ -4613,26 +4800,26 @@ export default function FactorySettingsTab() {
 
                                   {/* Action / Stepper */}
                                   <div className="shrink-0 flex flex-col items-end gap-1.5">
-                                    <span className="text-[10px] font-mono font-bold text-[#526B91] px-1.5 py-0.5 rounded bg-slate-100">
+                                    <span className="text-[10px] font-mono font-bold text-[#526B91] px-1.5 py-0.5 rounded bg-[#F4F9FF]">
                                       {m.unit || "PCS"}
                                     </span>
                                     {inBomQty > 0 ? (
-                                      <div className="flex items-center gap-1 bg-white border border-purple-300 rounded-lg p-0.5 shadow-2xs">
+                                      <div className="flex items-center gap-1 bg-white border border-[#D8E8FA] rounded-lg p-0.5 shadow-2xs">
                                         <button
                                           type="button"
                                           onClick={() => handleDecrementBomMaterial(m.id)}
-                                          className="w-6 h-6 rounded flex items-center justify-center text-purple-700 hover:bg-purple-100 transition-colors cursor-pointer"
+                                          className="w-6 h-6 rounded flex items-center justify-center text-[#0878F9] hover:bg-[#EAF5FF] transition-colors cursor-pointer"
                                           title="Decrease quantity"
                                         >
                                           <Minus className="w-3 h-3" />
                                         </button>
-                                        <span className="w-8 text-center font-mono font-bold text-xs text-purple-700">
+                                        <span className="w-8 text-center font-mono font-bold text-xs text-[#0878F9]">
                                           {inBomQty}
                                         </span>
                                         <button
                                           type="button"
                                           onClick={() => handleQuickAddBomMaterial(m)}
-                                          className="w-6 h-6 rounded flex items-center justify-center text-purple-700 hover:bg-purple-100 transition-colors cursor-pointer"
+                                          className="w-6 h-6 rounded flex items-center justify-center text-[#0878F9] hover:bg-[#EAF5FF] transition-colors cursor-pointer"
                                           title="Increase quantity"
                                         >
                                           <Plus className="w-3 h-3" />
@@ -4642,7 +4829,7 @@ export default function FactorySettingsTab() {
                                       <button
                                         type="button"
                                         onClick={() => handleQuickAddBomMaterial(m)}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-2xs transition-all cursor-pointer"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0878F9] hover:bg-[#0667DB] text-white font-semibold text-xs shadow-2xs transition-all cursor-pointer"
                                       >
                                         <Plus className="w-3 h-3" />
                                         Add
@@ -4658,12 +4845,12 @@ export default function FactorySettingsTab() {
 
                       {/* Catalog Pagination Footer */}
                       {catalogTotalPages > 1 && (
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
+                        <div className="flex items-center justify-between pt-2 border-t border-[#D8E8FA] text-xs">
                           <button
                             type="button"
                             disabled={currentCatalogPage <= 1}
                             onClick={() => setBomCatalogPage(prev => Math.max(1, prev - 1))}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-[#526B91] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 cursor-pointer font-medium text-[11px]"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#D8E8FA] text-[#526B91] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F4F9FF] cursor-pointer font-medium text-[11px]"
                           >
                             <ChevronLeft className="w-3.5 h-3.5" />
                             Prev
@@ -4675,7 +4862,7 @@ export default function FactorySettingsTab() {
                             type="button"
                             disabled={currentCatalogPage >= catalogTotalPages}
                             onClick={() => setBomCatalogPage(prev => Math.min(catalogTotalPages, prev + 1))}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 text-[#526B91] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 cursor-pointer font-medium text-[11px]"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#D8E8FA] text-[#526B91] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F4F9FF] cursor-pointer font-medium text-[11px]"
                           >
                             Next
                             <ChevronRight className="w-3.5 h-3.5" />
@@ -4685,11 +4872,11 @@ export default function FactorySettingsTab() {
                     </div>
 
                     {/* RIGHT PANEL: Active BOM Recipe List & Quantity Management */}
-                    <div className="lg:col-span-6 bg-white border border-purple-200/90 rounded-2xl p-4 flex flex-col shadow-xs space-y-3">
-                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-purple-100">
+                    <div className="lg:col-span-6 bg-white border border-[#D8E8FA] rounded-2xl p-4 flex flex-col shadow-xs space-y-3">
+                      <div className="flex items-center justify-between gap-2 pb-2 border-b border-[#D8E8FA]">
                         <div className="flex items-center gap-2">
-                          <Component className="w-4 h-4 text-purple-600" />
-                          <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wider">
+                          <Component className="w-4 h-4 text-[#0878F9]" />
+                          <h4 className="text-xs font-bold text-[#0B2148] uppercase tracking-wider">
                             2. Active Assembly Recipe ({bomFormItems.length})
                           </h4>
                         </div>
@@ -4697,7 +4884,7 @@ export default function FactorySettingsTab() {
                           <button
                             type="button"
                             onClick={handleAddBomItemRow}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold text-[11px] shadow-2xs transition-all cursor-pointer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#0878F9] hover:bg-[#0667DB] text-white font-semibold text-[11px] shadow-2xs transition-all cursor-pointer"
                           >
                             <Plus className="w-3 h-3" />
                             Add Custom Row
@@ -4706,7 +4893,7 @@ export default function FactorySettingsTab() {
                             <button
                               type="button"
                               onClick={() => setBomFormItems([])}
-                              className="px-2 py-1 rounded-lg border border-slate-200 text-[#526B91] hover:text-red-600 text-[11px] font-medium transition-colors cursor-pointer"
+                              className="px-2 py-1 rounded-lg border border-[#D8E8FA] text-[#526B91] hover:text-red-600 text-[11px] font-medium transition-colors cursor-pointer"
                             >
                               Clear
                             </button>
@@ -4716,7 +4903,7 @@ export default function FactorySettingsTab() {
 
                       {/* Filter Search Bar for Added Items */}
                       <div className="relative">
-                        <Search className="w-3.5 h-3.5 text-purple-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <Search className="w-3.5 h-3.5 text-[#0878F9] absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
                           value={bomAddedSearch}
@@ -4725,7 +4912,7 @@ export default function FactorySettingsTab() {
                             setBomAddedPage(1);
                           }}
                           placeholder="Search within added recipe components..."
-                          className="w-full bg-purple-50/30 border border-purple-200 rounded-xl py-2 pl-9 pr-8 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-purple-600 focus:bg-white focus:ring-1 focus:ring-purple-600 shadow-2xs"
+                          className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 pl-9 pr-8 text-xs text-[#0B2148] placeholder-[#64748B] focus:outline-none focus:border-[#0878F9] focus:bg-white focus:ring-1 focus:ring-[#0878F9] shadow-2xs"
                         />
                         {bomAddedSearch && (
                           <button
@@ -4734,7 +4921,7 @@ export default function FactorySettingsTab() {
                               setBomAddedSearch("");
                               setBomAddedPage(1);
                             }}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#526B91] hover:text-slate-600 p-0.5 cursor-pointer"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#526B91] hover:text-[#526B91] p-0.5 cursor-pointer"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -4765,8 +4952,8 @@ export default function FactorySettingsTab() {
                               }}
                               className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold transition-all cursor-pointer ${
                                 bomAddedPerPage === pp
-                                  ? "bg-purple-100 text-purple-700 border border-purple-300"
-                                  : "bg-slate-100 text-[#526B91] hover:bg-slate-200"
+                                  ? "bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]"
+                                  : "bg-[#F4F9FF] text-[#526B91] hover:bg-[#EAF5FF]"
                               }`}
                             >
                               {pp}
@@ -4778,12 +4965,12 @@ export default function FactorySettingsTab() {
                       {/* Added Items List */}
                       <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
                         {paginatedAddedBomItems.length === 0 ? (
-                          <div className="p-8 text-center space-y-2 bg-purple-50/30 rounded-xl border border-dashed border-purple-200">
+                          <div className="p-8 text-center space-y-2 bg-[#F4F9FF] rounded-xl border border-dashed border-[#D8E8FA]">
                             <p className="text-xs text-[#526B91]">
                               {bomAddedSearch ? "No added components match your search filter." : "No components added to this BOM recipe yet."}
                             </p>
                             {!bomAddedSearch && (
-                              <p className="text-[11px] text-purple-700 font-medium">
+                              <p className="text-[11px] text-[#0878F9] font-medium">
                                 Pick components from the catalog on the left or click &quot;Add Custom Row&quot;.
                               </p>
                             )}
@@ -4796,18 +4983,18 @@ export default function FactorySettingsTab() {
                             return (
                               <div
                                 key={originalIdx}
-                                className="p-3 rounded-xl bg-white border border-slate-200 hover:border-purple-300 transition-all shadow-2xs space-y-2"
+                                className="p-3 rounded-xl bg-white border border-[#D8E8FA] hover:border-[#0878F9]/40 transition-all shadow-2xs space-y-2"
                               >
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="flex items-center gap-2">
-                                    <span className="w-5 h-5 rounded-full bg-purple-100 text-purple-700 font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
+                                    <span className="w-5 h-5 rounded-full bg-[#EAF5FF] text-[#0878F9] font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
                                       {originalIdx + 1}
                                     </span>
-                                    <span className="font-mono font-bold text-xs text-purple-700">
+                                    <span className="font-mono font-bold text-xs text-[#0878F9]">
                                       {mat?.sku || "Select Material"}
                                     </span>
                                     {mat?.category && (
-                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-slate-100 text-[#526B91]">
+                                      <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-[#F4F9FF] text-[#526B91]">
                                         {mat.category}
                                       </span>
                                     )}
@@ -4816,7 +5003,7 @@ export default function FactorySettingsTab() {
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveBomItemRow(originalIdx)}
-                                    className="p-1 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                                    className="p-1 text-[#526B91] hover:text-red-600 rounded-lg hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                                     title="Remove component from BOM"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -4828,7 +5015,7 @@ export default function FactorySettingsTab() {
                                   <select
                                     value={item.materialId}
                                     onChange={(e) => handleBomItemChange(originalIdx, "materialId", e.target.value)}
-                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg py-1.5 px-2.5 text-xs text-[#0B2148] focus:outline-none focus:border-purple-600 cursor-pointer"
+                                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-lg py-1.5 px-2.5 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] cursor-pointer"
                                   >
                                     {(materials || []).map((m: any) => (
                                       <option key={m.id} value={m.id}>
@@ -4839,14 +5026,14 @@ export default function FactorySettingsTab() {
                                 </div>
 
                                 {/* Parameter / Specs & Quantity Stepper */}
-                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#D8E8FA]">
                                   <p className="text-[11px] text-[#526B91] truncate flex-1">
                                     {mat?.description || mat?.name || "Standard component"}
                                   </p>
 
                                   <div className="flex items-center gap-1.5 shrink-0">
                                     <span className="text-[11px] text-[#526B91] font-medium">Qty:</span>
-                                    <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg p-0.5">
+                                    <div className="flex items-center gap-1 bg-[#F4F9FF] border border-[#D8E8FA] rounded-lg p-0.5">
                                       <button
                                         type="button"
                                         onClick={() => handleBomItemStepQty(originalIdx, -1)}
@@ -4860,7 +5047,7 @@ export default function FactorySettingsTab() {
                                         min="1"
                                         value={item.quantity}
                                         onChange={(e) => handleBomItemChange(originalIdx, "quantity", e.target.value)}
-                                        className="w-12 text-center font-mono font-bold text-xs text-purple-700 bg-transparent focus:outline-none"
+                                        className="w-12 text-center font-mono font-bold text-xs text-[#0878F9] bg-transparent focus:outline-none"
                                       />
                                       <button
                                         type="button"
@@ -4884,12 +5071,12 @@ export default function FactorySettingsTab() {
 
                       {/* Added Items Pagination Footer */}
                       {addedTotalPages > 1 && (
-                        <div className="flex items-center justify-between pt-2 border-t border-purple-100 text-xs">
+                        <div className="flex items-center justify-between pt-2 border-t border-[#D8E8FA] text-xs">
                           <button
                             type="button"
                             disabled={currentAddedPage <= 1}
                             onClick={() => setBomAddedPage(prev => Math.max(1, prev - 1))}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-purple-200 text-[#526B91] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-50 cursor-pointer font-medium text-[11px]"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#D8E8FA] text-[#526B91] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F4F9FF] cursor-pointer font-medium text-[11px]"
                           >
                             <ChevronLeft className="w-3.5 h-3.5" />
                             Prev
@@ -4901,7 +5088,7 @@ export default function FactorySettingsTab() {
                             type="button"
                             disabled={currentAddedPage >= addedTotalPages}
                             onClick={() => setBomAddedPage(prev => Math.min(addedTotalPages, prev + 1))}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-purple-200 text-[#526B91] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-purple-50 cursor-pointer font-medium text-[11px]"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[#D8E8FA] text-[#526B91] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F4F9FF] cursor-pointer font-medium text-[11px]"
                           >
                             Next
                             <ChevronRight className="w-3.5 h-3.5" />
@@ -4917,7 +5104,7 @@ export default function FactorySettingsTab() {
                 <div className="flex items-center justify-between p-4 border-t border-[#D8E8FA] bg-white shrink-0">
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-mono text-[#526B91]">
-                      Total Components: <strong className="text-purple-700">{bomFormItems.length}</strong>
+                      Total Components: <strong className="text-[#0878F9]">{bomFormItems.length}</strong>
                     </span>
                     <span className="text-xs font-mono text-[#526B91]">
                       Total Aggregate Units: <strong className="text-[#0B2148]">{totalBomPiecesCount}</strong>
@@ -4927,14 +5114,14 @@ export default function FactorySettingsTab() {
                     <button 
                       type="button" 
                       onClick={() => setIsBomModalOpen(false)}
-                      className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-slate-100 transition-colors cursor-pointer"
+                      className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-[#F4F9FF] transition-colors cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button 
                       type="submit"
                       disabled={saveBomMutation.isPending || !bomFormName.trim() || bomFormItems.length === 0}
-                      className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 px-5 py-2 rounded-xl text-white font-semibold text-xs shadow-sm transition-all cursor-pointer"
+                      className="flex items-center gap-1.5 bg-[#0878F9] hover:bg-[#0667DB] disabled:opacity-50 px-5 py-2 rounded-xl text-white font-semibold text-xs shadow-sm transition-all cursor-pointer"
                     >
                       {saveBomMutation.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       {selectedBom ? "Update BOM Template" : "Register BOM Template"}
@@ -4964,17 +5151,17 @@ export default function FactorySettingsTab() {
               initial={{ opacity: 0, scale: 0.97, y: 10 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.97, y: 10 }}
-              className="relative w-full max-w-5xl bg-white dark:bg-white border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden z-10 text-slate-900 dark:text-[#0B2148]"
+              className="relative w-full max-w-5xl bg-white border border-[#D8E8FA] rounded-2xl shadow-2xl overflow-hidden z-10 text-[#0B2148]"
             >
-              <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-purple-50/40 dark:bg-purple-950/20">
+              <div className="p-5 border-b border-[#D8E8FA] flex items-center justify-between bg-[#EAF5FF]/60">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center shadow-xs">
+                  <div className="w-9 h-9 rounded-xl bg-[#0878F9] text-white flex items-center justify-center shadow-xs">
                     <Component className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base font-bold text-slate-900 dark:text-[#0B2148] flex items-center gap-2">
+                    <h3 className="text-base font-bold text-[#0B2148] flex items-center gap-2">
                       <span>BOM: {previewBomModalItem.name}</span>
-                      <span className="px-2 py-0.5 rounded bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-mono text-[10px] font-bold">
+                      <span className="px-2 py-0.5 rounded bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA] font-mono text-[10px] font-bold">
                         {previewBomModalItem.items?.length || 0} Materials
                       </span>
                     </h3>
@@ -4986,16 +5173,16 @@ export default function FactorySettingsTab() {
                 <button 
                   type="button"
                   onClick={() => setPreviewBomModalItem(null)} 
-                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-[#526B91] hover:text-[#526B91] dark:hover:text-white transition-all cursor-pointer"
+                  className="p-1.5 hover:bg-[#F4F9FF] rounded-lg text-[#526B91] hover:text-[#0B2148] transition-all cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
-                <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                <div className="rounded-xl border border-[#D8E8FA] overflow-hidden">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 dark:bg-slate-800/60 text-[#526B91] font-semibold border-b border-slate-200 dark:border-slate-800">
+                    <thead className="bg-[#F4F9FF] text-[#526B91] font-semibold border-b border-[#D8E8FA]">
                       <tr>
                         <th className="px-3.5 py-2.5 w-12">#</th>
                         <th className="px-3.5 py-2.5">Component / SKU</th>
@@ -5004,26 +5191,26 @@ export default function FactorySettingsTab() {
                         <th className="px-3.5 py-2.5 text-right">In Stock</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    <tbody className="divide-y divide-[#D8E8FA]">
                       {(previewBomModalItem.items || []).map((it: any, idx: number) => {
                         const mat = it.material || (materials || []).find((m: any) => m.id === it.materialId);
 
                         return (
-                          <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <tr key={idx} className="hover:bg-[#F4F9FF]">
                             <td className="px-3.5 py-2.5 font-mono text-[#526B91]">{idx + 1}</td>
                             <td className="px-3.5 py-2.5">
-                              <p className="font-bold text-slate-900 dark:text-[#0B2148]">{mat?.name || `Material #${it.materialId?.slice(0, 8)}`}</p>
+                              <p className="font-bold text-[#0B2148]">{mat?.name || `Material #${it.materialId?.slice(0, 8)}`}</p>
                               <p className="text-[10px] font-mono text-[#526B91]">{mat?.sku || "SKU"}</p>
                             </td>
                             <td className="px-3.5 py-2.5">
-                              <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[#526B91] dark:text-[#0B2148] font-mono text-[10px] font-semibold">
+                              <span className="px-1.5 py-0.5 rounded bg-[#F4F9FF] text-[#526B91] font-mono text-[10px] font-semibold">
                                 {mat?.category || "PART"}
                               </span>
                             </td>
-                            <td className="px-3.5 py-2.5 text-center font-mono font-bold text-purple-600 dark:text-purple-400">
+                            <td className="px-3.5 py-2.5 text-center font-mono font-bold text-[#0878F9]">
                               {it.quantity} {mat?.unit || "PCS"}
                             </td>
-                            <td className="px-3.5 py-2.5 text-right font-mono font-medium text-[#526B91] dark:text-[#0B2148]">
+                            <td className="px-3.5 py-2.5 text-right font-mono font-medium text-[#526B91]">
                               {mat?.quantity !== undefined ? `${mat.quantity} ${mat.unit || "PCS"}` : "—"}
                             </td>
                           </tr>
@@ -5034,7 +5221,7 @@ export default function FactorySettingsTab() {
                 </div>
               </div>
 
-              <div className="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/40 dark:bg-white">
+              <div className="p-4 border-t border-[#D8E8FA] flex items-center justify-between bg-[#F4F9FF]">
                 <span className="text-[11px] text-[#526B91] font-mono">
                   Total Parts Required: {(previewBomModalItem.items || []).reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0)} units
                 </span>
@@ -5046,7 +5233,7 @@ export default function FactorySettingsTab() {
                       setPreviewBomModalItem(null);
                       handleOpenBomModal(bomToEdit);
                     }}
-                    className="inline-flex items-center gap-1 px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-xs cursor-pointer"
+                    className="inline-flex items-center gap-1 px-4 py-1.5 rounded-xl bg-[#0878F9] hover:bg-[#0667DB] text-white font-semibold text-xs shadow-xs cursor-pointer"
                   >
                     <Edit className="w-3.5 h-3.5" />
                     Edit Template
@@ -5054,7 +5241,7 @@ export default function FactorySettingsTab() {
                   <button 
                     type="button" 
                     onClick={() => setPreviewBomModalItem(null)}
-                    className="px-4 py-1.5 rounded-xl text-xs font-medium text-[#526B91] hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer"
+                    className="px-4 py-1.5 rounded-xl text-xs font-medium text-[#526B91] hover:bg-[#F4F9FF] cursor-pointer"
                   >
                     Close
                   </button>
@@ -5112,17 +5299,17 @@ export default function FactorySettingsTab() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-black tracking-tight text-slate-950 uppercase">KYRA ZAM 2.0 — Material Master Catalog</h1>
-              <p className="text-xs text-slate-600 mt-1">
+              <p className="text-xs text-[#526B91] mt-1">
                 Non-Cell Component Specifications, Part Numbers, and Inventory Master
               </p>
             </div>
-            <div className="text-right text-xs text-slate-500 font-mono">
+            <div className="text-right text-xs text-[#526B91] font-mono">
               <p>Printed: {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
               <p>Total Records: {filteredMaterials.length}</p>
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-4 text-xs font-mono text-slate-700 bg-slate-100 p-2 rounded">
+          <div className="mt-3 flex flex-wrap gap-4 text-xs font-mono text-[#0B2148] bg-[#F4F9FF] p-2 rounded">
             <span><strong>Category:</strong> {categoryFilter}</span>
             <span><strong>Type:</strong> {typeFilter}</span>
             {materialSearch && <span><strong>Keyword:</strong> &quot;{materialSearch}&quot;</span>}
@@ -5131,7 +5318,7 @@ export default function FactorySettingsTab() {
 
         <table className="w-full text-left border-collapse text-xs">
           <thead>
-            <tr className="border-b-2 border-slate-800 text-[11px] font-bold uppercase tracking-wider text-slate-700">
+            <tr className="border-b-2 border-slate-800 text-[11px] font-bold uppercase tracking-wider text-[#0B2148]">
               <th className="py-2 px-2 w-10 text-center">#</th>
               <th className="py-2 px-3">Part Number / SKU</th>
               <th className="py-2 px-3">Material Name</th>
@@ -5143,22 +5330,22 @@ export default function FactorySettingsTab() {
               <th className="py-2 px-2 text-center">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-[#D8E8FA]">
             {filteredMaterials.map((mat: any, idx: number) => (
-              <tr key={mat.id || idx} className="hover:bg-slate-50">
-                <td className="py-2 px-2 text-center font-mono text-slate-500">{idx + 1}</td>
-                <td className="py-2 px-3 font-mono font-bold text-slate-900">{mat.sku}</td>
-                <td className="py-2 px-3 font-semibold text-slate-800">{mat.name}</td>
-                <td className="py-2 px-3 font-mono text-slate-600">{mat.materialCode || "—"}</td>
-                <td className="py-2 px-3 font-semibold text-slate-700">{mat.category}</td>
+              <tr key={mat.id || idx} className="hover:bg-[#F4F9FF]">
+                <td className="py-2 px-2 text-center font-mono text-[#526B91]">{idx + 1}</td>
+                <td className="py-2 px-3 font-mono font-bold text-[#0B2148]">{mat.sku}</td>
+                <td className="py-2 px-3 font-semibold text-[#0B2148]">{mat.name}</td>
+                <td className="py-2 px-3 font-mono text-[#526B91]">{mat.materialCode || "—"}</td>
+                <td className="py-2 px-3 font-semibold text-[#0B2148]">{mat.category}</td>
                 <td className="py-2 px-2 text-center font-mono font-bold">{mat.materialType || "QTZ"}</td>
                 <td className="py-2 px-2 text-center font-mono">{mat.unit || "PCS"}</td>
                 <td className="py-2 px-3 text-right font-mono font-medium">
-                  {mat.unitPrice ? `₹${Number(mat.unitPrice).toLocaleString("en-IN", { minimumFractionDigits: 2 })}` : "—"}
+                  {mat.unitPrice ? formatMoneyWithSymbol(mat.unitPrice, activeCurrencySymbol) : "—"}
                 </td>
                 <td className="py-2 px-2 text-center">
                   <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase font-mono ${
-                    mat.isActive !== false ? "text-emerald-700 bg-emerald-50" : "text-amber-700 bg-amber-50"
+                    mat.isActive !== false ? "text-[#0878F9] bg-[#EAF5FF]" : "text-[#526B91] bg-[#F4F9FF]"
                   }`}>
                     {mat.isActive !== false ? "Active" : "Inactive"}
                   </span>
@@ -5168,7 +5355,7 @@ export default function FactorySettingsTab() {
           </tbody>
         </table>
 
-        <div className="mt-8 pt-4 border-t border-slate-300 text-[10px] text-slate-500 flex justify-between font-mono">
+        <div className="mt-8 pt-4 border-t border-[#D8E8FA] text-[10px] text-[#526B91] flex justify-between font-mono">
           <span>KYRA ZAM 2.0 ERP — Confidential Factory Master Data</span>
           <span>End of Catalog Listing</span>
         </div>

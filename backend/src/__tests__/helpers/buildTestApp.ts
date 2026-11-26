@@ -11,6 +11,7 @@ import { invoiceOrderRoutes } from "../../routes/invoiceOrders";
 import { mediaRoutes } from "../../routes/media";
 import { financeRoutes } from "../../routes/finance";
 import { expenseRoutes } from "../../routes/expenses";
+import { getFactoryFinancialSettings } from "../../services/factorySettings.service";
 import { paxRoutes } from "../../routes/pax";
 import { multipartPlugin } from "../../plugins/multipart";
 import fastifyStatic from "@fastify/static";
@@ -74,6 +75,10 @@ export async function buildTestApp(): Promise<FastifyInstance> {
   await app.register(financeRoutes, { prefix: "/crm/finance" });
   await app.register(expenseRoutes, { prefix: "/expenses" });
   await app.register(expenseRoutes, { prefix: "/crm/expenses" });
+
+  app.get("/factory-settings/financial", { preHandler: [app.authenticate] }, async () => {
+    return getFactoryFinancialSettings();
+  });
   await app.register(paxRoutes, { prefix: "/pax" });
 
   // Protected route using fastify.authenticate

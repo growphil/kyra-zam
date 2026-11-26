@@ -271,7 +271,7 @@ export default function WarehouseSettingsTab() {
       {/* 1. KPI Stats Summary Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Warehouses */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-white border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+        <div className="p-4 rounded-2xl bg-white border border-[#D8E8FA] shadow-xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
             <Building2 className="w-5 h-5" />
           </div>
@@ -284,7 +284,7 @@ export default function WarehouseSettingsTab() {
         </div>
 
         {/* Total Storage Bins / Zones */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-white border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+        <div className="p-4 rounded-2xl bg-white border border-[#D8E8FA] shadow-xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
             <Boxes className="w-5 h-5" />
           </div>
@@ -297,20 +297,20 @@ export default function WarehouseSettingsTab() {
         </div>
 
         {/* Mapped Stock Balances */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-white border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0 border border-purple-100">
+        <div className="p-4 rounded-2xl bg-white border border-[#D8E8FA] shadow-xs flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-[#EAF5FF] text-[#0878F9] flex items-center justify-center shrink-0 border border-[#D8E8FA]">
             <Layers className="w-5 h-5" />
           </div>
           <div>
             <p className="text-xs font-semibold text-[#526B91]">Active Stock Positions</p>
-            <p className="text-xl font-bold font-mono text-purple-700 mt-0.5">
+            <p className="text-xl font-bold font-mono text-[#0878F9] mt-0.5">
               {totalBalancesCount} Mapped
             </p>
           </div>
         </div>
 
         {/* Operational System Status */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-white border border-slate-200 dark:border-slate-800 shadow-xs flex items-center gap-3.5">
+        <div className="p-4 rounded-2xl bg-white border border-[#D8E8FA] shadow-xs flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-100">
             <CheckCircle2 className="w-5 h-5" />
           </div>
@@ -325,7 +325,7 @@ export default function WarehouseSettingsTab() {
       </div>
 
       {/* 2. Search, Filter, and Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white dark:bg-white rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-[#D8E8FA] shadow-xs">
         <div className="flex flex-wrap items-center gap-2.5 flex-1 max-w-xl">
           {/* Search Box */}
           <div className="relative flex-1 min-w-[240px]">
@@ -335,7 +335,7 @@ export default function WarehouseSettingsTab() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search warehouses by name, code, address, or bin..."
-              className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-50 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-[#0B2148] placeholder-[#526B91] focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
+              className="w-full pl-9 pr-3 py-2 bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl text-xs text-[#0B2148] placeholder-[#526B91] focus:outline-none focus:border-blue-600 focus:bg-white transition-all"
             />
             {searchQuery && (
               <button 
@@ -353,7 +353,7 @@ export default function WarehouseSettingsTab() {
             <select
               value={filterType}
               onChange={(e: any) => setFilterType(e.target.value)}
-              className="bg-slate-50 border border-slate-200 dark:border-slate-700 rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer font-medium"
+              className="bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 cursor-pointer font-medium"
             >
               <option value="ALL">All Warehouses ({warehouses?.length || 0})</option>
               <option value="WITH_LOCATIONS">Configured With Bins</option>
@@ -377,12 +377,12 @@ export default function WarehouseSettingsTab() {
 
       {/* 3. Main Warehouses & Locations List */}
       {loadingWarehouses ? (
-        <div className="p-12 text-center rounded-2xl bg-white border border-slate-200">
+        <div className="p-12 text-center rounded-2xl bg-white border border-[#D8E8FA]">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600 mb-3" />
           <p className="text-xs font-semibold text-[#526B91]">Loading factory warehouses and storage locations...</p>
         </div>
       ) : filteredWarehouses.length === 0 ? (
-        <div className="p-12 text-center rounded-2xl bg-white border border-slate-200 space-y-3">
+        <div className="p-12 text-center rounded-2xl bg-white border border-[#D8E8FA] space-y-3">
           <Warehouse className="w-12 h-12 mx-auto text-[#526B91]" />
           <h4 className="text-sm font-bold text-[#0B2148]">
             {searchQuery ? "No matching warehouses found" : "No warehouses registered yet"}
@@ -410,10 +410,10 @@ export default function WarehouseSettingsTab() {
             return (
               <div
                 key={wh.id}
-                className="rounded-2xl bg-white dark:bg-white border border-slate-200 dark:border-slate-800 shadow-xs hover:border-blue-300 transition-all overflow-hidden"
+                className="rounded-2xl bg-white border border-[#D8E8FA] shadow-xs hover:border-blue-300 transition-all overflow-hidden"
               >
                 {/* Warehouse Header Card */}
-                <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/40">
+                <div className="p-5 border-b border-[#D8E8FA] flex flex-col md:flex-row md:items-center justify-between gap-4 bg-[#F4F9FF]">
                   <div className="flex items-start sm:items-center gap-3.5">
                     <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 border border-blue-200">
                       <Warehouse className="w-5 h-5" />
@@ -430,7 +430,7 @@ export default function WarehouseSettingsTab() {
                         <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
                           {wh.code}
                         </span>
-                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-[#526B91]">
+                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-[#F4F9FF] text-[#526B91]">
                           {locCount} {locCount === 1 ? "Location Bin" : "Location Bins"}
                         </span>
                       </div>
@@ -459,7 +459,7 @@ export default function WarehouseSettingsTab() {
                     <button
                       type="button"
                       onClick={() => handleOpenEditWarehouse(wh)}
-                      className="p-1.5 rounded-xl text-[#526B91] hover:text-[#0B2148] hover:bg-slate-100 transition-all cursor-pointer"
+                      className="p-1.5 rounded-xl text-[#526B91] hover:text-[#0B2148] hover:bg-[#F4F9FF] transition-all cursor-pointer"
                       title="Edit warehouse details"
                     >
                       <Edit className="w-4 h-4" />
@@ -490,7 +490,7 @@ export default function WarehouseSettingsTab() {
                   </div>
 
                   {locCount === 0 ? (
-                    <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center space-y-2 bg-slate-50/50">
+                    <div className="p-4 rounded-xl border border-dashed border-[#D8E8FA] text-center space-y-2 bg-[#F4F9FF]">
                       <Boxes className="w-6 h-6 mx-auto text-[#526B91]" />
                       <p className="text-xs text-[#526B91]">
                         No location bins configured for this facility yet.
@@ -509,14 +509,14 @@ export default function WarehouseSettingsTab() {
                       {wh.locations.map((loc, locIdx) => (
                         <div
                           key={loc.id}
-                          className="p-3 rounded-xl bg-slate-50 hover:bg-white border border-slate-200 hover:border-blue-300 transition-all flex items-center justify-between gap-2.5 text-xs group"
+                          className="p-3 rounded-xl bg-[#F4F9FF] hover:bg-white border border-[#D8E8FA] hover:border-blue-300 transition-all flex items-center justify-between gap-2.5 text-xs group"
                         >
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <span className="w-5 h-5 rounded bg-blue-100 text-blue-800 font-mono font-bold text-[10px] flex items-center justify-center shrink-0 border border-blue-200">
                                 #{locIdx + 1}
                               </span>
-                              <span className="font-mono font-bold text-blue-700 bg-white border border-slate-200 px-2 py-0.5 rounded text-[11px]">
+                              <span className="font-mono font-bold text-blue-700 bg-white border border-[#D8E8FA] px-2 py-0.5 rounded text-[11px]">
                                 {loc.code}
                               </span>
                             </div>
@@ -529,7 +529,7 @@ export default function WarehouseSettingsTab() {
                             <button
                               type="button"
                               onClick={() => handleOpenEditLocation(wh, loc)}
-                              className="p-1 rounded-md text-[#526B91] hover:text-blue-600 hover:bg-slate-100 transition-all cursor-pointer"
+                              className="p-1 rounded-md text-[#526B91] hover:text-blue-600 hover:bg-[#F4F9FF] transition-all cursor-pointer"
                               title="Edit location bin"
                             >
                               <Edit className="w-3.5 h-3.5" />
@@ -571,10 +571,10 @@ export default function WarehouseSettingsTab() {
               initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 8 }}
-              className="relative w-full max-w-2xl bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-10"
+              className="relative w-full max-w-2xl bg-white border border-[#D8E8FA] rounded-2xl shadow-xl overflow-hidden z-10"
             >
               {/* Header */}
-              <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+              <div className="p-5 border-b border-[#D8E8FA] flex items-center justify-between bg-[#F4F9FF]">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-sm">
                     <Warehouse className="w-5 h-5" />
@@ -591,7 +591,7 @@ export default function WarehouseSettingsTab() {
                 <button
                   type="button"
                   onClick={() => setIsWHModalOpen(false)}
-                  className="p-1.5 hover:bg-slate-200 rounded-lg text-[#526B91] cursor-pointer"
+                  className="p-1.5 hover:bg-[#EAF5FF] rounded-lg text-[#526B91] cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -632,7 +632,7 @@ export default function WarehouseSettingsTab() {
                     value={whForm.name}
                     onChange={(e) => setWhForm({ ...whForm, name: e.target.value })}
                     placeholder="e.g. Finished Goods Central Depo"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-[#0B2148] font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] font-medium focus:outline-none focus:border-blue-600 focus:bg-white"
                   />
                 </div>
 
@@ -647,7 +647,7 @@ export default function WarehouseSettingsTab() {
                     value={whForm.code}
                     onChange={(e) => setWhForm({ ...whForm, code: e.target.value.toUpperCase() })}
                     placeholder="e.g. WH-FG, WH-RAW, WH-ASM"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-mono font-bold text-blue-600 focus:outline-none focus:border-blue-600 focus:bg-white"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-bold text-blue-600 focus:outline-none focus:border-blue-600 focus:bg-white"
                   />
                   <p className="text-[10px] text-[#526B91]">
                     Used across barcodes, transfers, goods receipts, and packing slips.
@@ -664,16 +664,16 @@ export default function WarehouseSettingsTab() {
                     value={whForm.address}
                     onChange={(e) => setWhForm({ ...whForm, address: e.target.value })}
                     placeholder="e.g. Building C, Floor 1, Logistics Receiving Bay 2"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 focus:bg-white resize-none"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] focus:outline-none focus:border-blue-600 focus:bg-white resize-none"
                   />
                 </div>
 
                 {/* Footer Buttons */}
-                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#D8E8FA]">
                   <button
                     type="button"
                     onClick={() => setIsWHModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-slate-100 cursor-pointer"
+                    className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-[#F4F9FF] cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -709,10 +709,10 @@ export default function WarehouseSettingsTab() {
               initial={{ opacity: 0, scale: 0.96, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 8 }}
-              className="relative w-full max-w-xl bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-10"
+              className="relative w-full max-w-xl bg-white border border-[#D8E8FA] rounded-2xl shadow-xl overflow-hidden z-10"
             >
               {/* Header */}
-              <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
+              <div className="p-5 border-b border-[#D8E8FA] flex items-center justify-between bg-[#F4F9FF]">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
                     <Boxes className="w-5 h-5" />
@@ -729,7 +729,7 @@ export default function WarehouseSettingsTab() {
                 <button
                   type="button"
                   onClick={() => setIsLocModalOpen(false)}
-                  className="p-1.5 hover:bg-slate-200 rounded-lg text-[#526B91] cursor-pointer"
+                  className="p-1.5 hover:bg-[#EAF5FF] rounded-lg text-[#526B91] cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -770,7 +770,7 @@ export default function WarehouseSettingsTab() {
                     value={locForm.code}
                     onChange={(e) => setLocForm({ ...locForm, code: e.target.value.toUpperCase() })}
                     placeholder="e.g. BIN-A01, RACK-01, PALLET-01"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs font-mono font-bold text-emerald-700 focus:outline-none focus:border-emerald-600 focus:bg-white"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs font-mono font-bold text-emerald-700 focus:outline-none focus:border-emerald-600 focus:bg-white"
                   />
                   <p className="text-[10px] text-[#526B91]">
                     Barcode / QR identifier printed on shelves and storage bins.
@@ -788,16 +788,16 @@ export default function WarehouseSettingsTab() {
                     value={locForm.name}
                     onChange={(e) => setLocForm({ ...locForm, name: e.target.value })}
                     placeholder="e.g. Aisle 1 - Top Shelf Raw Inventory"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-xs text-[#0B2148] font-medium focus:outline-none focus:border-emerald-600 focus:bg-white"
+                    className="w-full bg-[#F4F9FF] border border-[#D8E8FA] rounded-xl py-2 px-3 text-xs text-[#0B2148] font-medium focus:outline-none focus:border-emerald-600 focus:bg-white"
                   />
                 </div>
 
                 {/* Footer Buttons */}
-                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#D8E8FA]">
                   <button
                     type="button"
                     onClick={() => setIsLocModalOpen(false)}
-                    className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-slate-100 cursor-pointer"
+                    className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-[#F4F9FF] cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -833,7 +833,7 @@ export default function WarehouseSettingsTab() {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="relative w-full max-w-xl bg-white border border-slate-200 rounded-2xl shadow-xl p-6 space-y-4 z-10"
+              className="relative w-full max-w-xl bg-white border border-[#D8E8FA] rounded-2xl shadow-xl p-6 space-y-4 z-10"
             >
               <div className="w-11 h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-200">
                 <AlertCircle className="w-6 h-6" />
@@ -856,7 +856,7 @@ export default function WarehouseSettingsTab() {
                 <button
                   type="button"
                   onClick={() => setDeletingWH(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-slate-100 cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-[#F4F9FF] cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -892,7 +892,7 @@ export default function WarehouseSettingsTab() {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="relative w-full max-w-xl bg-white border border-slate-200 rounded-2xl shadow-xl p-6 space-y-4 z-10"
+              className="relative w-full max-w-xl bg-white border border-[#D8E8FA] rounded-2xl shadow-xl p-6 space-y-4 z-10"
             >
               <div className="w-11 h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center border border-red-200">
                 <AlertCircle className="w-6 h-6" />
@@ -911,7 +911,7 @@ export default function WarehouseSettingsTab() {
                 <button
                   type="button"
                   onClick={() => setDeletingLoc(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-slate-100 cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-[#526B91] hover:bg-[#F4F9FF] cursor-pointer"
                 >
                   Cancel
                 </button>

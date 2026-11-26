@@ -14,6 +14,8 @@ import {
   Mail, 
   ArrowUpRight,
   User,
+  UserPlus,
+  UserCheck,
   Copy,
   Sparkles,
   MapPin,
@@ -649,649 +651,685 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* Slide-out Register Customer Dialog Drawer */}
+      {/* Full-Width Single-View Register Customer Modal Popup */}
       <AnimatePresence>
         {isCreateOpen && (
-          <div className="fixed inset-0 z-50 flex justify-end bg-white backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 md:p-6 bg-slate-900/60 backdrop-blur-xs overflow-y-auto">
             {/* Backdrop click close */}
-            <div className="absolute inset-0" onClick={() => setIsCreateOpen(false)} />
+            <div className="fixed inset-0" onClick={() => setIsCreateOpen(false)} />
 
             <motion.div 
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="relative w-full max-w-3xl bg-white border-l border-slate-200 h-full flex flex-col shadow-2xl p-6 sm:p-8 z-10 overflow-y-auto text-slate-900"
+              initial={{ opacity: 0, scale: 0.96, y: 14 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 14 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="relative w-full max-w-6xl xl:max-w-7xl max-h-[92vh] bg-white rounded-2xl border border-[#D8E8FA] shadow-2xl flex flex-col z-10 overflow-hidden my-auto text-[#0B2148]"
             >
-              {/* Drawer Header */}
-              <div className="flex justify-between items-center pb-5 border-b border-slate-200">
-                <div>
-                  <h2 className="text-xl font-display font-bold text-slate-900 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-blue-600" />
-                    Register New Customer
-                  </h2>
-                  <p className="text-xs text-[#526B91] mt-0.5">
-                    Initialize verified commercial account file with structured billing & shipping specifications.
-                  </p>
+              {/* Modal Sticky Header */}
+              <div className="flex justify-between items-center px-6 py-4.5 border-b border-[#D8E8FA] bg-white shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#EAF5FF] border border-[#D8E8FA] flex items-center justify-center text-[#0878F9] shadow-2xs">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-[#0B2148] flex items-center gap-2">
+                      <span>Register New Customer Profile</span>
+                      <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-[#EAF5FF] text-[#0878F9] border border-[#D8E8FA]">
+                        {customerType === "BUSINESS" ? "Corporate Entity" : "Individual Client"}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-[#526B91]">
+                      Initialize verified commercial account file with structured billing & delivery routing specifications.
+                    </p>
+                  </div>
                 </div>
                 <button 
                   type="button"
                   onClick={() => setIsCreateOpen(false)}
-                  className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-[#526B91] hover:text-slate-800 transition-colors cursor-pointer"
-                  title="Close"
+                  className="p-2 bg-[#F4F9FF] hover:bg-[#EAF5FF] rounded-xl text-[#526B91] hover:text-[#0878F9] transition-colors cursor-pointer border border-[#D8E8FA]"
+                  title="Close Modal"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleCreateSubmit} className="flex-1 py-6 space-y-6">
-                
-                {/* 1. CUSTOMER TYPE & DEMOGRAPHIC INFORMATION */}
-                <div className="space-y-4 bg-slate-50/80 p-4 sm:p-5 rounded-2xl border border-slate-200">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <User className="w-4 h-4 text-blue-600" />
-                      1. Customer Information
-                    </h3>
-                    <span className="text-[10px] font-semibold text-[#526B91]">* Required</span>
-                  </div>
+              {/* Form Content - 2-Column Responsive Layout for Single View */}
+              <form id="customer-register-form" onSubmit={handleCreateSubmit} className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 overflow-y-auto p-5 sm:p-6 bg-[#F4F9FF]/40 space-y-5">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    
+                    {/* LEFT COLUMN: Identity, Contact & Notes (5 cols) */}
+                    <div className="lg:col-span-5 space-y-4">
+                      
+                      {/* 1. CUSTOMER TYPE & DEMOGRAPHIC INFORMATION */}
+                      <div className="space-y-4 bg-white p-4 sm:p-5 rounded-2xl border border-[#D8E8FA] shadow-2xs">
+                        <div className="flex items-center justify-between pb-1 border-b border-[#D8E8FA]">
+                          <h3 className="text-xs font-bold text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
+                            <User className="w-4 h-4 text-[#0878F9]" />
+                            1. Customer Identity
+                          </h3>
+                          <span className="text-[10px] font-semibold text-[#526B91]">* Required</span>
+                        </div>
 
-                  {/* Customer Type Segmented Switch */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                      Customer Profile Type *
-                    </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setCustomerType("INDIVIDUAL")}
-                        className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                          customerType === "INDIVIDUAL" 
-                            ? "bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/20" 
-                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                        }`}
-                      >
-                        <User className="w-3.5 h-3.5" />
-                        <span>Individual Consumer</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCustomerType("BUSINESS")}
-                        className={`py-2.5 px-4 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-2 ${
-                          customerType === "BUSINESS" 
-                            ? "bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-500/20" 
-                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                        }`}
-                      >
-                        <Building2 className="w-3.5 h-3.5" />
-                        <span>Business / Corporate Entity</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Name & Contact Person Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                        {customerType === "BUSINESS" ? "Company / Business Name *" : "Customer Full Name *"}
-                      </label>
-                      <input 
-                        id="customer-name-input"
-                        type="text" 
-                        required
-                        placeholder={customerType === "BUSINESS" ? "e.g. ABC Industries Pvt Ltd" : "e.g. Rajesh Kumar"}
-                        value={customerName}
-                        onChange={(e) => {
-                          setCustomerName(e.target.value);
-                          if (errors.name) setErrors(prev => ({ ...prev, name: "" }));
-                        }}
-                        className={`w-full bg-white border ${errors.name ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-colors shadow-xs`}
-                      />
-                      {errors.name && <p className="text-[10px] text-rose-600 font-semibold">{errors.name}</p>}
-                    </div>
-
-                    {customerType === "BUSINESS" && (
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                          Primary Contact Person
-                        </label>
-                        <input 
-                          id="contact-person-input"
-                          type="text" 
-                          placeholder="e.g. Rajesh Kumar"
-                          value={contactPerson}
-                          onChange={(e) => {
-                            setContactPerson(e.target.value);
-                            if (errors.contactPerson) setErrors(prev => ({ ...prev, contactPerson: "" }));
-                          }}
-                          className={`w-full bg-white border ${errors.contactPerson ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-colors shadow-xs`}
-                        />
-                        {errors.contactPerson && <p className="text-[10px] text-rose-600 font-semibold">{errors.contactPerson}</p>}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* 2. CONTACT & TAX IDENTIFICATION */}
-                <div className="space-y-4 bg-slate-50/80 p-4 sm:p-5 rounded-2xl border border-slate-200">
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <Mail className="w-4 h-4 text-purple-600" />
-                    2. Contact & Commercial Identifiers
-                  </h3>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Email */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                        Email Address *
-                      </label>
-                      <input 
-                        id="customer-email-input"
-                        type="email" 
-                        required
-                        placeholder="e.g. sales@company.com"
-                        value={email}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          if (errors.email) setErrors(prev => ({ ...prev, email: "" }));
-                        }}
-                        className={`w-full bg-white border ${errors.email ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-colors shadow-xs`}
-                      />
-                      {errors.email && <p className="text-[10px] text-rose-600 font-semibold">{errors.email}</p>}
-                    </div>
-
-                    {/* Tax / GSTIN */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider flex items-center justify-between">
-                        <span>Tax / GSTIN Number</span>
-                        <span className="text-[9px] text-[#526B91] font-medium">Optional</span>
-                      </label>
-                      <input 
-                        id="customer-gst-input"
-                        type="text" 
-                        maxLength={15}
-                        placeholder="e.g. 33AATCM3839R1ZI"
-                        value={taxGst}
-                        onChange={(e) => {
-                          setTaxGst(e.target.value.toUpperCase());
-                          if (errors.taxGst) setErrors(prev => ({ ...prev, taxGst: "" }));
-                        }}
-                        className={`w-full bg-white border ${errors.taxGst ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono transition-colors shadow-xs`}
-                      />
-                      {errors.taxGst && <p className="text-[10px] text-rose-600 font-semibold">{errors.taxGst}</p>}
-                    </div>
-                  </div>
-
-                  {/* Phone Inputs */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div id="customer-phone-input">
-                      <PhoneInput
-                        label="Primary Phone Number"
-                        required={true}
-                        country={phoneCountry}
-                        phoneNumber={phone}
-                        error={errors.phone}
-                        onCountryChange={(c) => {
-                          setPhoneCountry(c);
-                          if (errors.phone) {
-                            const res = validatePhoneNumber(phone, c, true);
-                            setErrors(prev => ({ ...prev, phone: res.isValid ? "" : (res.error || "") }));
-                          }
-                        }}
-                        onPhoneChange={(val) => {
-                          setPhone(val);
-                          if (errors.phone) {
-                            const res = validatePhoneNumber(val, phoneCountry, true);
-                            setErrors(prev => ({ ...prev, phone: res.isValid ? "" : (res.error || "") }));
-                          }
-                        }}
-                        onBlur={() => {
-                          if (phone) {
-                            const res = validatePhoneNumber(phone, phoneCountry, true);
-                            if (!res.isValid) {
-                              setErrors(prev => ({ ...prev, phone: res.error || "Invalid phone number" }));
-                            }
-                          }
-                        }}
-                      />
-                    </div>
-
-                    <div id="customer-altphone-input">
-                      <PhoneInput
-                        label="Alternate Phone (Optional)"
-                        required={false}
-                        country={altPhoneCountry}
-                        phoneNumber={alternatePhone}
-                        error={errors.alternatePhone}
-                        onCountryChange={(c) => {
-                          setAltPhoneCountry(c);
-                          if (errors.alternatePhone) {
-                            const res = validatePhoneNumber(alternatePhone, c, false);
-                            setErrors(prev => ({ ...prev, alternatePhone: res.isValid ? "" : (res.error || "") }));
-                          }
-                        }}
-                        onPhoneChange={(val) => {
-                          setAlternatePhone(val);
-                          if (errors.alternatePhone) {
-                            const res = validatePhoneNumber(val, altPhoneCountry, false);
-                            setErrors(prev => ({ ...prev, alternatePhone: res.isValid ? "" : (res.error || "") }));
-                          }
-                        }}
-                        onBlur={() => {
-                          if (alternatePhone) {
-                            const res = validatePhoneNumber(alternatePhone, altPhoneCountry, false);
-                            if (!res.isValid) {
-                              setErrors(prev => ({ ...prev, alternatePhone: res.error || "Invalid alternate phone number" }));
-                            }
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. STRUCTURED BILLING ADDRESS */}
-                <div className="space-y-4 bg-slate-50/80 p-4 sm:p-5 rounded-2xl border border-slate-200">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <MapPin className="w-4 h-4 text-blue-600" />
-                      3. Registered Billing Address
-                    </h3>
-                    <span className="text-[10px] font-semibold text-[#526B91]">* Required</span>
-                  </div>
-
-                  {/* Address Line 1 */}
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                      Address Line 1 (Door / Flat / Building No.) *
-                    </label>
-                    <input 
-                      id="billing-line1-input"
-                      type="text" 
-                      required
-                      placeholder="e.g. No. 16, School Street, Cyber City Phase 2"
-                      value={billingLine1}
-                      onChange={(e) => {
-                        setBillingLine1(e.target.value);
-                        if (errors.billingLine1) setErrors(prev => ({ ...prev, billingLine1: "" }));
-                      }}
-                      className={`w-full bg-white border ${errors.billingLine1 ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-colors shadow-xs`}
-                    />
-                    {errors.billingLine1 && <p className="text-[10px] text-rose-600 font-semibold">{errors.billingLine1}</p>}
-                  </div>
-
-                  {/* Address Line 2 & Landmark */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                        Address Line 2 (Street / Road / Area)
-                      </label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Near Industrial Estate"
-                        value={billingLine2}
-                        onChange={(e) => setBillingLine2(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-colors shadow-xs"
-                      />
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                        Landmark (Optional)
-                      </label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Opposite Metro Pillar 140"
-                        value={billingLandmark}
-                        onChange={(e) => setBillingLandmark(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-colors shadow-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {/* City, State, Country, PIN Code Grid */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {/* City */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                        City *
-                      </label>
-                      <input 
-                        id="billing-city-input"
-                        type="text" 
-                        required
-                        placeholder="e.g. Chennai"
-                        value={billingCity}
-                        onChange={(e) => {
-                          setBillingCity(e.target.value);
-                          if (errors.billingCity) setErrors(prev => ({ ...prev, billingCity: "" }));
-                        }}
-                        className={`w-full bg-white border ${errors.billingCity ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 shadow-xs`}
-                      />
-                      {errors.billingCity && <p className="text-[10px] text-rose-600 font-semibold">{errors.billingCity}</p>}
-                    </div>
-
-                    {/* State */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                        State *
-                      </label>
-                      {billingCountry === "India" ? (
-                        <select
-                          id="billing-state-input"
-                          value={billingState}
-                          onChange={(e) => {
-                            setBillingState(e.target.value);
-                            if (errors.billingState) setErrors(prev => ({ ...prev, billingState: "" }));
-                          }}
-                          className={`w-full bg-white border ${errors.billingState ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs`}
-                        >
-                          {INDIAN_STATES.map((st) => (
-                            <option key={st} value={st}>{st}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input 
-                          id="billing-state-input"
-                          type="text"
-                          required
-                          placeholder="Province / State"
-                          value={billingState}
-                          onChange={(e) => {
-                            setBillingState(e.target.value);
-                            if (errors.billingState) setErrors(prev => ({ ...prev, billingState: "" }));
-                          }}
-                          className={`w-full bg-white border ${errors.billingState ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 shadow-xs`}
-                        />
-                      )}
-                    </div>
-
-                    {/* Country */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                        Country *
-                      </label>
-                      <select
-                        value={billingCountry}
-                        onChange={(e) => setBillingCountry(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
-                      >
-                        {COUNTRIES.map((c) => (
-                          <option key={c.code} value={c.name}>{c.flag} {c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* PIN Code */}
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                        PIN / Postal *
-                      </label>
-                      <input 
-                        id="billing-postal-input"
-                        type="text" 
-                        required
-                        maxLength={10}
-                        placeholder={billingCountry === "India" ? "600122" : "ZIP / PIN"}
-                        value={billingPostalCode}
-                        onChange={(e) => {
-                          setBillingPostalCode(e.target.value.trim());
-                          if (errors.billingPostalCode) setErrors(prev => ({ ...prev, billingPostalCode: "" }));
-                        }}
-                        className={`w-full bg-white border ${errors.billingPostalCode ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono shadow-xs`}
-                      />
-                      {errors.billingPostalCode && <p className="text-[10px] text-rose-600 font-semibold">{errors.billingPostalCode}</p>}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 4. STRUCTURED SHIPPING ADDRESS & SAME AS BILLING TOGGLE */}
-                <div className="space-y-4 bg-slate-50/80 p-4 sm:p-5 rounded-2xl border border-slate-200">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
-                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <MapPin className="w-4 h-4 text-emerald-600" />
-                      4. Destination Shipping Address
-                    </h3>
-
-                    {/* Same as Billing Checkbox */}
-                    <label className="inline-flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs hover:bg-slate-50 transition-colors">
-                      <input 
-                        type="checkbox"
-                        checked={sameAsBilling}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setSameAsBilling(checked);
-                          if (checked) {
-                            setShippingLine1("");
-                            setShippingLine2("");
-                            setShippingLandmark("");
-                            setShippingCity("");
-                            setShippingState("Tamil Nadu");
-                            setShippingCountry("India");
-                            setShippingPostalCode("");
-                          }
-                        }}
-                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300 cursor-pointer"
-                      />
-                      <span className="text-xs font-bold text-slate-700">Same as Billing Address</span>
-                    </label>
-                  </div>
-
-                  {sameAsBilling ? (
-                    <div className="p-4 bg-white border border-slate-200 rounded-xl text-xs space-y-1 shadow-2xs">
-                      <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-[11px]">
-                        <Check className="w-4 h-4" />
-                        <span>Synchronized with Billing Address</span>
-                      </div>
-                      <p className="text-slate-700 font-medium">
-                        {billingLine1 ? `${billingLine1}, ` : ""}{billingLine2 ? `${billingLine2}, ` : ""}{billingLandmark ? `Landmark: ${billingLandmark}, ` : ""}
-                        {billingCity ? `${billingCity}, ` : ""}{billingState ? `${billingState}, ` : ""}{billingCountry} {billingPostalCode ? `- ${billingPostalCode}` : ""}
-                      </p>
-                      <p className="text-[10px] text-[#526B91] italic">
-                        Uncheck &quot;Same as Billing Address&quot; above to specify an independent delivery destination.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4 pt-1">
-                      {/* Shipping Address Line 1 */}
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                          Shipping Address Line 1 *
-                        </label>
-                        <input 
-                          id="shipping-line1-input"
-                          type="text" 
-                          required
-                          placeholder="e.g. Warehouse 4, Logistics Park"
-                          value={shippingLine1}
-                          onChange={(e) => {
-                            setShippingLine1(e.target.value);
-                            if (errors.shippingLine1) setErrors(prev => ({ ...prev, shippingLine1: "" }));
-                          }}
-                          className={`w-full bg-white border ${errors.shippingLine1 ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 transition-colors shadow-xs`}
-                        />
-                        {errors.shippingLine1 && <p className="text-[10px] text-rose-600 font-semibold">{errors.shippingLine1}</p>}
-                      </div>
-
-                      {/* Shipping Address Line 2 & Landmark */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Customer Type Segmented Switch */}
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                            Shipping Address Line 2
+                            Customer Profile Type *
                           </label>
-                          <input 
-                            type="text" 
-                            placeholder="e.g. Sector 18"
-                            value={shippingLine2}
-                            onChange={(e) => setShippingLine2(e.target.value)}
-                            className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 shadow-xs"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                            Landmark (Optional)
-                          </label>
-                          <input 
-                            type="text" 
-                            placeholder="e.g. Near Toll Plaza"
-                            value={shippingLandmark}
-                            onChange={(e) => setShippingLandmark(e.target.value)}
-                            className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 shadow-xs"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Shipping City, State, Country, PIN Code Grid */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">City *</label>
-                          <input 
-                            id="shipping-city-input"
-                            type="text" 
-                            required
-                            placeholder="e.g. Coimbatore"
-                            value={shippingCity}
-                            onChange={(e) => {
-                              setShippingCity(e.target.value);
-                              if (errors.shippingCity) setErrors(prev => ({ ...prev, shippingCity: "" }));
-                            }}
-                            className={`w-full bg-white border ${errors.shippingCity ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 shadow-xs`}
-                          />
-                          {errors.shippingCity && <p className="text-[10px] text-rose-600 font-semibold">{errors.shippingCity}</p>}
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">State *</label>
-                          {shippingCountry === "India" ? (
-                            <select
-                              id="shipping-state-input"
-                              value={shippingState}
-                              onChange={(e) => {
-                                setShippingState(e.target.value);
-                                if (errors.shippingState) setErrors(prev => ({ ...prev, shippingState: "" }));
-                              }}
-                              className={`w-full bg-white border ${errors.shippingState ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs`}
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => setCustomerType("INDIVIDUAL")}
+                              className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                                customerType === "INDIVIDUAL" 
+                                  ? "bg-[#0878F9] text-white border-[#0878F9] shadow-sm shadow-blue-500/20" 
+                                  : "bg-white text-[#526B91] border-[#D8E8FA] hover:bg-[#F4F9FF] hover:text-[#0878F9]"
+                              }`}
                             >
-                              {INDIAN_STATES.map((st) => (
-                                <option key={st} value={st}>{st}</option>
-                              ))}
-                            </select>
-                          ) : (
+                              <User className="w-3.5 h-3.5" />
+                              <span>Individual</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setCustomerType("BUSINESS")}
+                              className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                                customerType === "BUSINESS" 
+                                  ? "bg-[#0878F9] text-white border-[#0878F9] shadow-sm shadow-blue-500/20" 
+                                  : "bg-white text-[#526B91] border-[#D8E8FA] hover:bg-[#F4F9FF] hover:text-[#0878F9]"
+                              }`}
+                            >
+                              <Building2 className="w-3.5 h-3.5" />
+                              <span>Corporate / B2B</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Name & Contact Person Grid */}
+                        <div className="space-y-3">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                              {customerType === "BUSINESS" ? "Company / Business Legal Name *" : "Customer Full Name *"}
+                            </label>
                             <input 
-                              id="shipping-state-input"
-                              type="text"
+                              id="customer-name-input"
+                              type="text" 
                               required
-                              placeholder="Province / State"
-                              value={shippingState}
+                              placeholder={customerType === "BUSINESS" ? "e.g. Lusaka Solar Energy Ltd" : "e.g. John Banda"}
+                              value={customerName}
                               onChange={(e) => {
-                                setShippingState(e.target.value);
-                                if (errors.shippingState) setErrors(prev => ({ ...prev, shippingState: "" }));
+                                setCustomerName(e.target.value);
+                                if (errors.name) setErrors(prev => ({ ...prev, name: "" }));
                               }}
-                              className={`w-full bg-white border ${errors.shippingState ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 shadow-xs`}
+                              className={`w-full bg-white border ${errors.name ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] transition-colors shadow-2xs`}
                             />
+                            {errors.name && <p className="text-[10px] text-rose-600 font-semibold">{errors.name}</p>}
+                          </div>
+
+                          {customerType === "BUSINESS" && (
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                                Primary Contact Person
+                              </label>
+                              <input 
+                                id="contact-person-input"
+                                type="text" 
+                                placeholder="e.g. Kelvin Phiri (Procurement Head)"
+                                value={contactPerson}
+                                onChange={(e) => {
+                                  setContactPerson(e.target.value);
+                                  if (errors.contactPerson) setErrors(prev => ({ ...prev, contactPerson: "" }));
+                                }}
+                                className={`w-full bg-white border ${errors.contactPerson ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] transition-colors shadow-2xs`}
+                              />
+                              {errors.contactPerson && <p className="text-[10px] text-rose-600 font-semibold">{errors.contactPerson}</p>}
+                            </div>
                           )}
                         </div>
+                      </div>
 
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">Country *</label>
-                          <select
-                            value={shippingCountry}
-                            onChange={(e) => setShippingCountry(e.target.value)}
-                            className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
-                          >
-                            {COUNTRIES.map((c) => (
-                              <option key={c.code} value={c.name}>{c.flag} {c.name}</option>
-                            ))}
-                          </select>
+                      {/* 2. CONTACT & COMMERCIAL IDENTIFIERS */}
+                      <div className="space-y-4 bg-white p-4 sm:p-5 rounded-2xl border border-[#D8E8FA] shadow-2xs">
+                        <div className="flex items-center justify-between pb-1 border-b border-[#D8E8FA]">
+                          <h3 className="text-xs font-bold text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
+                            <Mail className="w-4 h-4 text-[#0878F9]" />
+                            2. Communication & Commercial IDs
+                          </h3>
                         </div>
 
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">PIN / Postal *</label>
-                          <input 
-                            id="shipping-postal-input"
-                            type="text" 
-                            required
-                            maxLength={10}
-                            placeholder={shippingCountry === "India" ? "641001" : "ZIP / PIN"}
-                            value={shippingPostalCode}
-                            onChange={(e) => {
-                              setShippingPostalCode(e.target.value.trim());
-                              if (errors.shippingPostalCode) setErrors(prev => ({ ...prev, shippingPostalCode: "" }));
-                            }}
-                            className={`w-full bg-white border ${errors.shippingPostalCode ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'} rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 font-mono shadow-xs`}
-                          />
-                          {errors.shippingPostalCode && <p className="text-[10px] text-rose-600 font-semibold">{errors.shippingPostalCode}</p>}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          {/* Email */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                              Email Address *
+                            </label>
+                            <input 
+                              id="customer-email-input"
+                              type="email" 
+                              required
+                              placeholder="e.g. billing@company.com"
+                              value={email}
+                              onChange={(e) => {
+                                setEmail(e.target.value);
+                                if (errors.email) setErrors(prev => ({ ...prev, email: "" }));
+                              }}
+                              className={`w-full bg-white border ${errors.email ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] transition-colors shadow-2xs`}
+                            />
+                            {errors.email && <p className="text-[10px] text-rose-600 font-semibold">{errors.email}</p>}
+                          </div>
+
+                          {/* Tax / TPIN / GSTIN */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider flex items-center justify-between">
+                              <span>TPIN / Tax / GST No.</span>
+                              <span className="text-[9px] text-[#526B91] font-medium">Optional</span>
+                            </label>
+                            <input 
+                              id="customer-gst-input"
+                              type="text" 
+                              maxLength={15}
+                              placeholder="e.g. 1001234567 / GST"
+                              value={taxGst}
+                              onChange={(e) => {
+                                setTaxGst(e.target.value.toUpperCase());
+                                if (errors.taxGst) setErrors(prev => ({ ...prev, taxGst: "" }));
+                              }}
+                              className={`w-full bg-white border ${errors.taxGst ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] font-mono transition-colors shadow-2xs`}
+                            />
+                            {errors.taxGst && <p className="text-[10px] text-rose-600 font-semibold">{errors.taxGst}</p>}
+                          </div>
+                        </div>
+
+                        {/* Phone Inputs */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <div id="customer-phone-input">
+                            <PhoneInput
+                              label="Primary Phone Number"
+                              required={true}
+                              country={phoneCountry}
+                              phoneNumber={phone}
+                              error={errors.phone}
+                              onCountryChange={(c) => {
+                                setPhoneCountry(c);
+                                if (errors.phone) {
+                                  const res = validatePhoneNumber(phone, c, true);
+                                  setErrors(prev => ({ ...prev, phone: res.isValid ? "" : (res.error || "") }));
+                                }
+                              }}
+                              onPhoneChange={(val) => {
+                                setPhone(val);
+                                if (errors.phone) {
+                                  const res = validatePhoneNumber(val, phoneCountry, true);
+                                  setErrors(prev => ({ ...prev, phone: res.isValid ? "" : (res.error || "") }));
+                                }
+                              }}
+                              onBlur={() => {
+                                if (phone) {
+                                  const res = validatePhoneNumber(phone, phoneCountry, true);
+                                  if (!res.isValid) {
+                                    setErrors(prev => ({ ...prev, phone: res.error || "Invalid phone number" }));
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+
+                          <div id="customer-altphone-input">
+                            <PhoneInput
+                              label="Alternate Phone (Optional)"
+                              required={false}
+                              country={altPhoneCountry}
+                              phoneNumber={alternatePhone}
+                              error={errors.alternatePhone}
+                              onCountryChange={(c) => {
+                                setAltPhoneCountry(c);
+                                if (errors.alternatePhone) {
+                                  const res = validatePhoneNumber(alternatePhone, c, false);
+                                  setErrors(prev => ({ ...prev, alternatePhone: res.isValid ? "" : (res.error || "") }));
+                                }
+                              }}
+                              onPhoneChange={(val) => {
+                                setAlternatePhone(val);
+                                if (errors.alternatePhone) {
+                                  const res = validatePhoneNumber(val, altPhoneCountry, false);
+                                  setErrors(prev => ({ ...prev, alternatePhone: res.isValid ? "" : (res.error || "") }));
+                                }
+                              }}
+                              onBlur={() => {
+                                if (alternatePhone) {
+                                  const res = validatePhoneNumber(alternatePhone, altPhoneCountry, false);
+                                  if (!res.isValid) {
+                                    setErrors(prev => ({ ...prev, alternatePhone: res.error || "Invalid alternate phone number" }));
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )}
-                </div>
 
-                {/* 5. ASSIGNMENT & PROFILE NOTES */}
-                <div className="space-y-4 bg-slate-50/80 p-4 sm:p-5 rounded-2xl border border-slate-200">
-                  <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-blue-600" />
-                    5. Account Assignment & Master Notes
-                  </h3>
+                      {/* 5. ACCOUNT ASSIGNMENT & MASTER NOTES */}
+                      <div className="space-y-4 bg-white p-4 sm:p-5 rounded-2xl border border-[#D8E8FA] shadow-2xs">
+                        <div className="flex items-center justify-between pb-1 border-b border-[#D8E8FA]">
+                          <h3 className="text-xs font-bold text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-[#0878F9]" />
+                            3. Account Ownership & Notes
+                          </h3>
+                        </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                        Assignee Sales Agent
-                      </label>
-                      <select 
-                        value={assignedUserId}
-                        onChange={(e) => setAssignedUserId(e.target.value)}
-                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 focus:outline-none focus:border-blue-500 cursor-pointer shadow-xs"
-                      >
-                        <option value="">Select Assignee User</option>
-                        {users?.filter((u: any) => u.roles?.includes("SALES_EXECUTIVE") || u.role === "SALES_EXECUTIVE").map((u: any) => (
-                          <option key={u.id} value={u.id}>{u.name} (Sales Executive)</option>
-                        ))}
-                      </select>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                              Assignee Sales Executive
+                            </label>
+                            <select 
+                              value={assignedUserId}
+                              onChange={(e) => setAssignedUserId(e.target.value)}
+                              className="w-full bg-white border border-[#D8E8FA] rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] cursor-pointer shadow-2xs"
+                            >
+                              <option value="">Select Assignee User</option>
+                              {users?.filter((u: any) => u.roles?.includes("SALES_EXECUTIVE") || u.role === "SALES_EXECUTIVE").map((u: any) => (
+                                <option key={u.id} value={u.id}>{u.name} (Sales Executive)</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                              Commercial Notes / Terms
+                            </label>
+                            <textarea 
+                              placeholder="Payment terms, special agreements, warranty clauses..."
+                              value={notes}
+                              onChange={(e) => setNotes(e.target.value)}
+                              rows={2}
+                              className="w-full bg-white border border-[#D8E8FA] rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] resize-none shadow-2xs"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                     </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
-                        Profile Special Notes
-                      </label>
-                      <textarea 
-                        placeholder="Warranties, contract constraints, credit limits..."
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        rows={2}
-                        className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-blue-500 resize-none shadow-xs"
-                      />
+                    {/* RIGHT COLUMN: Structured Billing & Shipping Addresses (7 cols) */}
+                    <div className="lg:col-span-7 space-y-4">
+                      
+                      {/* 3. STRUCTURED BILLING ADDRESS */}
+                      <div className="space-y-4 bg-white p-4 sm:p-5 rounded-2xl border border-[#D8E8FA] shadow-2xs">
+                        <div className="flex items-center justify-between pb-1 border-b border-[#D8E8FA]">
+                          <h3 className="text-xs font-bold text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
+                            <MapPin className="w-4 h-4 text-[#0878F9]" />
+                            4. Registered Billing Address
+                          </h3>
+                          <span className="text-[10px] font-semibold text-[#526B91]">* Required for Invoicing</span>
+                        </div>
+
+                        {/* Address Line 1 */}
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                            Address Line 1 (Door / Flat / Plot / Building No.) *
+                          </label>
+                          <input 
+                            id="billing-line1-input"
+                            type="text" 
+                            required
+                            placeholder="e.g. Plot 1042, Great East Road"
+                            value={billingLine1}
+                            onChange={(e) => {
+                              setBillingLine1(e.target.value);
+                              if (errors.billingLine1) setErrors(prev => ({ ...prev, billingLine1: "" }));
+                            }}
+                            className={`w-full bg-white border ${errors.billingLine1 ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] transition-colors shadow-2xs`}
+                          />
+                          {errors.billingLine1 && <p className="text-[10px] text-rose-600 font-semibold">{errors.billingLine1}</p>}
+                        </div>
+
+                        {/* Address Line 2 & Landmark */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                              Address Line 2 (Street / Road / Area)
+                            </label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. Industrial Area"
+                              value={billingLine2}
+                              onChange={(e) => setBillingLine2(e.target.value)}
+                              className="w-full bg-white border border-[#D8E8FA] rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] transition-colors shadow-2xs"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                              Landmark (Optional)
+                            </label>
+                            <input 
+                              type="text" 
+                              placeholder="e.g. Opposite Arcades Mall"
+                              value={billingLandmark}
+                              onChange={(e) => setBillingLandmark(e.target.value)}
+                              className="w-full bg-white border border-[#D8E8FA] rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] transition-colors shadow-2xs"
+                            />
+                          </div>
+                        </div>
+
+                        {/* City, State, Country, PIN Code Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                          {/* City */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                              City *
+                            </label>
+                            <input 
+                              id="billing-city-input"
+                              type="text" 
+                              required
+                              placeholder="e.g. Lusaka"
+                              value={billingCity}
+                              onChange={(e) => {
+                                setBillingCity(e.target.value);
+                                if (errors.billingCity) setErrors(prev => ({ ...prev, billingCity: "" }));
+                              }}
+                              className={`w-full bg-white border ${errors.billingCity ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] shadow-2xs`}
+                            />
+                            {errors.billingCity && <p className="text-[10px] text-rose-600 font-semibold">{errors.billingCity}</p>}
+                          </div>
+
+                          {/* State */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                              State / Province *
+                            </label>
+                            {billingCountry === "India" ? (
+                              <select
+                                id="billing-state-input"
+                                value={billingState}
+                                onChange={(e) => {
+                                  setBillingState(e.target.value);
+                                  if (errors.billingState) setErrors(prev => ({ ...prev, billingState: "" }));
+                                }}
+                                className={`w-full bg-white border ${errors.billingState ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] cursor-pointer shadow-2xs`}
+                              >
+                                {INDIAN_STATES.map((st) => (
+                                  <option key={st} value={st}>{st}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input 
+                                id="billing-state-input"
+                                type="text"
+                                required
+                                placeholder="e.g. Lusaka Province"
+                                value={billingState}
+                                onChange={(e) => {
+                                  setBillingState(e.target.value);
+                                  if (errors.billingState) setErrors(prev => ({ ...prev, billingState: "" }));
+                                }}
+                                className={`w-full bg-white border ${errors.billingState ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] shadow-2xs`}
+                              />
+                            )}
+                          </div>
+
+                          {/* Country */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                              Country *
+                            </label>
+                            <select
+                              value={billingCountry}
+                              onChange={(e) => setBillingCountry(e.target.value)}
+                              className="w-full bg-white border border-[#D8E8FA] rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] cursor-pointer shadow-2xs"
+                            >
+                              {COUNTRIES.map((c) => (
+                                <option key={c.code} value={c.name}>{c.flag} {c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* PIN / Postal Code */}
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                              Postal Code *
+                            </label>
+                            <input 
+                              id="billing-postal-input"
+                              type="text" 
+                              required
+                              maxLength={10}
+                              placeholder="e.g. 10101"
+                              value={billingPostalCode}
+                              onChange={(e) => {
+                                setBillingPostalCode(e.target.value.trim());
+                                if (errors.billingPostalCode) setErrors(prev => ({ ...prev, billingPostalCode: "" }));
+                              }}
+                              className={`w-full bg-white border ${errors.billingPostalCode ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] font-mono shadow-2xs`}
+                            />
+                            {errors.billingPostalCode && <p className="text-[10px] text-rose-600 font-semibold">{errors.billingPostalCode}</p>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 4. DESTINATION SHIPPING ADDRESS & SAME AS BILLING TOGGLE */}
+                      <div className="space-y-4 bg-white p-4 sm:p-5 rounded-2xl border border-[#D8E8FA] shadow-2xs">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-[#D8E8FA]">
+                          <h3 className="text-xs font-bold text-[#0B2148] uppercase tracking-wider flex items-center gap-1.5">
+                            <MapPin className="w-4 h-4 text-[#0878F9]" />
+                            5. Delivery / Shipping Address
+                          </h3>
+
+                          {/* Same as Billing Checkbox */}
+                          <label className="inline-flex items-center gap-2 cursor-pointer bg-[#F4F9FF] px-3 py-1.5 rounded-xl border border-[#D8E8FA] shadow-2xs hover:bg-[#EAF5FF] transition-colors">
+                            <input 
+                              type="checkbox"
+                              checked={sameAsBilling}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setSameAsBilling(checked);
+                                if (checked) {
+                                  setShippingLine1("");
+                                  setShippingLine2("");
+                                  setShippingLandmark("");
+                                  setShippingCity("");
+                                  setShippingState("Tamil Nadu");
+                                  setShippingCountry("India");
+                                  setShippingPostalCode("");
+                                }
+                              }}
+                              className="w-4 h-4 rounded text-[#0878F9] focus:ring-[#0878F9] border-[#D8E8FA] cursor-pointer"
+                            />
+                            <span className="text-xs font-bold text-[#0B2148]">Same as Billing Address</span>
+                          </label>
+                        </div>
+
+                        {sameAsBilling ? (
+                          <div className="p-3.5 bg-[#EAF5FF]/60 border border-[#D8E8FA] rounded-xl text-xs space-y-1">
+                            <div className="flex items-center gap-1.5 text-[#0878F9] font-bold text-[11px]">
+                              <Check className="w-4 h-4" />
+                              <span>Synchronized with Registered Billing Address</span>
+                            </div>
+                            <p className="text-[#0B2148] font-medium text-xs">
+                              {billingLine1 ? `${billingLine1}, ` : ""}{billingLine2 ? `${billingLine2}, ` : ""}{billingLandmark ? `Landmark: ${billingLandmark}, ` : ""}
+                              {billingCity ? `${billingCity}, ` : ""}{billingState ? `${billingState}, ` : ""}{billingCountry} {billingPostalCode ? `- ${billingPostalCode}` : ""}
+                            </p>
+                            <p className="text-[10px] text-[#526B91] italic">
+                              Uncheck &quot;Same as Billing Address&quot; above to designate an independent delivery destination, depot, or warehouse.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-3.5 pt-1">
+                            {/* Shipping Address Line 1 */}
+                            <div className="space-y-1.5">
+                              <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                                Shipping Address Line 1 *
+                              </label>
+                              <input 
+                                id="shipping-line1-input"
+                                type="text" 
+                                required
+                                placeholder="e.g. Warehouse 4, Logistics Depot, Heavy Industrial Area"
+                                value={shippingLine1}
+                                onChange={(e) => {
+                                  setShippingLine1(e.target.value);
+                                  if (errors.shippingLine1) setErrors(prev => ({ ...prev, shippingLine1: "" }));
+                                }}
+                                className={`w-full bg-white border ${errors.shippingLine1 ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] transition-colors shadow-2xs`}
+                              />
+                              {errors.shippingLine1 && <p className="text-[10px] text-rose-600 font-semibold">{errors.shippingLine1}</p>}
+                            </div>
+
+                            {/* Shipping Address Line 2 & Landmark */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                                  Shipping Address Line 2
+                                </label>
+                                <input 
+                                  type="text" 
+                                  placeholder="e.g. Off Kafue Road"
+                                  value={shippingLine2}
+                                  onChange={(e) => setShippingLine2(e.target.value)}
+                                  className="w-full bg-white border border-[#D8E8FA] rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] shadow-2xs"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">
+                                  Landmark (Optional)
+                                </label>
+                                <input 
+                                  type="text" 
+                                  placeholder="e.g. Near Distribution Gate 2"
+                                  value={shippingLandmark}
+                                  onChange={(e) => setShippingLandmark(e.target.value)}
+                                  className="w-full bg-white border border-[#D8E8FA] rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] shadow-2xs"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Shipping City, State, Country, PIN Code Grid */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">City *</label>
+                                <input 
+                                  id="shipping-city-input"
+                                  type="text" 
+                                  required
+                                  placeholder="e.g. Ndola"
+                                  value={shippingCity}
+                                  onChange={(e) => {
+                                    setShippingCity(e.target.value);
+                                    if (errors.shippingCity) setErrors(prev => ({ ...prev, shippingCity: "" }));
+                                  }}
+                                  className={`w-full bg-white border ${errors.shippingCity ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] shadow-2xs`}
+                                />
+                                {errors.shippingCity && <p className="text-[10px] text-rose-600 font-semibold">{errors.shippingCity}</p>}
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">State / Province *</label>
+                                {shippingCountry === "India" ? (
+                                  <select
+                                    id="shipping-state-input"
+                                    value={shippingState}
+                                    onChange={(e) => {
+                                      setShippingState(e.target.value);
+                                      if (errors.shippingState) setErrors(prev => ({ ...prev, shippingState: "" }));
+                                    }}
+                                    className={`w-full bg-white border ${errors.shippingState ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] cursor-pointer shadow-2xs`}
+                                  >
+                                    {INDIAN_STATES.map((st) => (
+                                      <option key={st} value={st}>{st}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input 
+                                    id="shipping-state-input"
+                                    type="text"
+                                    required
+                                    placeholder="e.g. Copperbelt"
+                                    value={shippingState}
+                                    onChange={(e) => {
+                                      setShippingState(e.target.value);
+                                      if (errors.shippingState) setErrors(prev => ({ ...prev, shippingState: "" }));
+                                    }}
+                                    className={`w-full bg-white border ${errors.shippingState ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] shadow-2xs`}
+                                  />
+                                )}
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">Country *</label>
+                                <select
+                                  value={shippingCountry}
+                                  onChange={(e) => setShippingCountry(e.target.value)}
+                                  className="w-full bg-white border border-[#D8E8FA] rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] cursor-pointer shadow-2xs"
+                                >
+                                  {COUNTRIES.map((c) => (
+                                    <option key={c.code} value={c.name}>{c.flag} {c.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-bold text-[#526B91] uppercase tracking-wider">Postal Code *</label>
+                                <input 
+                                  id="shipping-postal-input"
+                                  type="text" 
+                                  required
+                                  maxLength={10}
+                                  placeholder="e.g. 10101"
+                                  value={shippingPostalCode}
+                                  onChange={(e) => {
+                                    setShippingPostalCode(e.target.value.trim());
+                                    if (errors.shippingPostalCode) setErrors(prev => ({ ...prev, shippingPostalCode: "" }));
+                                  }}
+                                  className={`w-full bg-white border ${errors.shippingPostalCode ? 'border-rose-400 ring-1 ring-rose-300' : 'border-[#D8E8FA]'} rounded-xl px-3.5 py-2 text-xs text-[#0B2148] focus:outline-none focus:border-[#0878F9] focus:ring-1 focus:ring-[#0878F9] font-mono shadow-2xs`}
+                                />
+                                {errors.shippingPostalCode && <p className="text-[10px] text-rose-600 font-semibold">{errors.shippingPostalCode}</p>}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                     </div>
+
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-3 pt-2">
-                  <button 
-                    type="button"
-                    onClick={() => setIsCreateOpen(false)}
-                    className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
+                {/* Modal Sticky Footer */}
+                <div className="px-6 py-3.5 bg-white border-t border-[#D8E8FA] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                  <div className="flex items-center gap-2 text-xs text-[#526B91]">
+                    <ShieldCheck className="w-4 h-4 text-[#0878F9]" />
+                    <span>Instant duplicate check • Auto-assigned sequential Customer Code</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <button 
+                      type="button"
+                      onClick={() => setIsCreateOpen(false)}
+                      className="px-5 py-2.5 bg-white hover:bg-[#F4F9FF] text-[#526B91] hover:text-[#0B2148] border border-[#D8E8FA] font-semibold rounded-xl text-xs transition-colors cursor-pointer shadow-2xs"
+                    >
+                      Cancel
+                    </button>
 
-                  <button 
-                    id="submit-customer-btn"
-                    type="submit" 
-                    disabled={createCustomerMutation.isPending}
-                    className="flex-[2] py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-md shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {createCustomerMutation.isPending ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        Registering Customer...
-                      </>
-                    ) : (
-                      "Register Customer Profile"
-                    )}
-                  </button>
+                    <button 
+                      id="submit-customer-btn"
+                      type="submit" 
+                      disabled={createCustomerMutation.isPending}
+                      className="px-6 py-2.5 bg-[#0878F9] hover:bg-[#0667DB] text-white font-semibold rounded-xl shadow-sm shadow-blue-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 text-xs"
+                    >
+                      {createCustomerMutation.isPending ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Registering Customer Profile...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserCheck className="w-4 h-4" />
+                          <span>Register Customer Profile</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
               </form>
